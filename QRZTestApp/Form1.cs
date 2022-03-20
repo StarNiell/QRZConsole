@@ -1,5 +1,4 @@
-﻿using CefSharp;
-using QRZLibrary;
+﻿using QRZLibrary;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -8,9 +7,10 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-
+using Timer = System.Windows.Forms.Timer;
 
 namespace QRZTestApp
 {
@@ -33,9 +33,23 @@ namespace QRZTestApp
             timer.Interval = 3000;
             timer.Tick += Timer_tick;
 
-            ctimer.Enabled = false;
-            ctimer.Interval = 3000;
-            ctimer.Tick += Timer_tick;
+            qrz.Qrz = "IU8NQI";
+            qrz.Password = "Goldendrops2016";
+
+            qrz.LoggedIn += Qrz_LoggedIn;
+            qrz.Error += Qrz_Error;
+
+        }
+
+
+        private void Qrz_Error(object sender, OnErrorEventArgs e)
+        {
+            addMonitor($"### {e.ex.Message}");
+        }
+
+        private void Qrz_LoggedIn(object sender, EventArgs e)
+        {
+            addMonitor($"Login completed.");
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -102,10 +116,35 @@ namespace QRZTestApp
         private void button5_Click(object sender, EventArgs e)
         {
 
+            bool ret = NavigateAndWait("https://www.qrz.com", 30000);
+
+            bool test = false;
+            HtmlElement el = QRZHelper.GetElementByTagAndClassName(webBrowser1.Document.Body, "ul", "primary-navigation");
+            if (el != null)
+            {
+                HtmlElement elm = QRZHelper.GetElementContainsValue(el, "IU8NQI");
+                test = (elm != null);
+
+            }
+
         }
 
-        private void Form1_Load(object sender, EventArgs e)
+        private bool NavigateAndWait(string Url, long timeout)
         {
+            bool ret = false;
+
+            Stopwatch stopwatch = new Stopwatch();
+            stopwatch.Start();
+            webBrowser1.Navigate(Url);
+            while (webBrowser1.ReadyState != WebBrowserReadyState.Complete)
+            {
+                Application.DoEvents();
+                Thread.Sleep(50);
+                if (stopwatch.ElapsedMilliseconds >= timeout)
+                    return false;
+            }
+
+            return true;
 
         }
 
@@ -114,86 +153,60 @@ namespace QRZTestApp
 
         }
 
-
-        private void cwb_LoadingStateChanged(object sender, CefSharp.LoadingStateChangedEventArgs e)
-        {
-            string log = $"LoadingStateChanged - IsLoading={e.IsLoading.ToString()}";
-            Debug.WriteLine(log);
-            addMonitor($"LoadingStateChanged - IsLoading={e.IsLoading.ToString()}");
-        }
-
         private void addMonitor(string log)
         {
             if (textBox1.InvokeRequired)
             {
                 var d = new SafeCallDelegate(addMonitor);
-                textBox2.Invoke(d, new object[] { log });
+                textBox1.Invoke(d, new object[] { log });
             }
             else
             {
-                textBox2.AppendText(log + Environment.NewLine);
-                textBox2.SelectionStart = textBox2.Text.Length;
-                textBox2.ScrollToCaret();
+                textBox1.AppendText(log + Environment.NewLine);
+                textBox1.SelectionStart = textBox1.Text.Length;
+                textBox1.ScrollToCaret();
             }
             
         }
 
+        private void webBrowser1_DocumentCompleted(object sender, WebBrowserDocumentCompletedEventArgs e)
+        {
+
+        }
+
+        private void button12_Click(object sender, EventArgs e)
+        {
+            addMonitor($"Start IsLogged request...");
+            addMonitor($"IsLogged = {qrz.IsLogged().ToString()}");
+        }
+
+        private void button13_Click(object sender, EventArgs e)
+        {
+            addMonitor($"Start Log Out...");
+            addMonitor($"Logout = {qrz.LogOut().ToString()}");
+        }
+
+        private void button14_Click(object sender, EventArgs e)
+        {
+            addMonitor($"Load QRZ Home...");
+            addMonitor($"Load QRZ Home = {qrz.GotoQrzHome()}");
+        }
+
+        private void button15_Click(object sender, EventArgs e)
+        {
+            addMonitor($"Load Logbook...");
+            addMonitor($"Load Logbook = {qrz.GotoLogbook()}");
+        }
+
+        private void button16_Click(object sender, EventArgs e)
+        {
+            addMonitor($"Login... QRZ=[{qrz.Qrz}] - Password=[{new string('*', qrz.Password.Length)}]");
+            qrz.Login();
+        }
+
         private void button6_Click(object sender, EventArgs e)
         {
-            cwb.LoadUrl("https://www.qrz.com/login");
-        }
 
-        private void button7_Click(object sender, EventArgs e)
-        {
-            addMonitor($"username = {GetElementValue("username")}");
-            SetElementValue("username", "IU8NQI");
-            addMonitor($"username = {GetElementValue("username")}");
-            ExecuteScript("next();");
-        }
-
-        private void button8_Click(object sender, EventArgs e)
-        {
-            addMonitor($"password = {GetElementValue("password")}");
-            SetElementValue("password", "Goldendrops2016");
-            addMonitor($"password = {GetElementValue("password")}");
-            ExecuteScript("next();");
-        }
-
-        private void button9_Click(object sender, EventArgs e)
-        {
-            cwb.LoadUrl("https://logbook.qrz.com");
-        }
-
-        private void button10_Click(object sender, EventArgs e)
-        {
-            SetElementValue("ipage", "5");
-            ExecuteScript("goto('page')");
-        }
-
-        private string GetElementValue(string id, string attribute = "value")
-        {
-            var task = cwb.GetBrowser().MainFrame.EvaluateScriptAsync($"document.getElementById('{id}').{attribute};");
-            task.Wait();
-
-            var response = task.Result;
-
-            return response.Result.ToString();
-
-        }
-
-        private void SetElementValue(string id, string value)
-        {
-            cwb.GetBrowser().MainFrame.ExecuteJavaScriptAsync($"document.getElementById('{id}').value='{value}';");
-        }
-
-        private void ExecuteScript(string script)
-        {
-            cwb.GetBrowser().MainFrame.ExecuteJavaScriptAsync(script);
-        }
-
-        private void button11_Click(object sender, EventArgs e)
-        {
-            textBox3.Text = GetElementValue("lbtab", "outerHTML"); // "document.getElementById('lbtab').outerHTML"
         }
     }
 }
