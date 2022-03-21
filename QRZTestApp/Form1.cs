@@ -1,4 +1,5 @@
 ﻿using QRZLibrary;
+using QRZLibrary.Classes;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -212,8 +213,18 @@ namespace QRZTestApp
         private void button6_Click_1(object sender, EventArgs e)
         {
             string QRZtoSearch = textBox3.Text;
-            addMonitor($"ExecQuery {QRZtoSearch}");
-            addMonitor($"Resut = {qrz.ExecQuery(QRZtoSearch)}");
+            addMonitor($"ExecQuery {QRZtoSearch}...");
+            LookupEntry entry = qrz.ExecQuery(QRZtoSearch);
+            addMonitor($"Resut = --->");
+            addMonitor($"   QRZ       = {entry.QRZ}");
+            addMonitor($"   DXCC      = {entry.DXCC}");
+            addMonitor($"   Country   = {entry.Country}");
+            addMonitor($"   Name      = {entry.Name}");
+            addMonitor($"   Address 1 = {entry.Address1}");
+            addMonitor($"   Address 2 = {entry.Address2}");
+            addMonitor($"   Address 3 = {entry.Address3}");
+            addMonitor($"   Email     = {entry.Email}");
+            addMonitor($"------------------------------------");
         }
     }
 }

@@ -1,10 +1,12 @@
-﻿using System;
+﻿using QRZLibrary.Classes;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -345,12 +347,13 @@ namespace QRZLibrary
             return ret;
         }
 
-        public string ExecQuery(string QRZsearch)
+        public LookupEntry ExecQuery(string QRZsearch)
         {
-            string ret = string.Empty;
+            LookupEntry ret = null; ;
             bool queryTimeOut = false;
             long timeout = PageLoadTimeOut;
             bool resultPageLoaded = false;
+            bool resultFound = false;
 
             if (GotoLookup())
             {
@@ -363,7 +366,14 @@ namespace QRZLibrary
                     InvokeMember(sbmt, "Click");
                     while (!resultPageLoaded)
                     {
-                        resultPageLoaded = (wb.Document.GetElementById("csdata") != null);
+                        bool test = (wb.Document.GetElementById("qrzcenter") != null);
+                        if (test)
+                        {
+                            resultPageLoaded = (wb.Document.GetElementById("qrzcenter").OuterText.IndexOf($"no results for {QRZsearch.ToUpper()}") > 0);
+                        }
+
+                        resultPageLoaded = resultPageLoaded || (wb.Document.GetElementById("csdata") != null) || (wb.Document.GetElementById("csdata") != null);
+                                    //|| (wb.Document.GetElementById("tqry") != null);
                         Application.DoEvents();
                         Thread.Sleep(CpuSleep);
                         if (stopwatch.ElapsedMilliseconds >= timeout)
@@ -374,21 +384,35 @@ namespace QRZLibrary
                     }
                     if (!queryTimeOut)
                     {
-                        HtmlElement csdata = wb.Document.GetElementById("csdata");
-                        if (csdata != null)
+                        LookupEntry entry = new LookupEntry();
+                        resultFound = (wb.Document.GetElementById("csdata") != null);
+                        if (resultFound)
                         {
-                            ret = csdata.OuterText;
+                            HtmlElement csdata = wb.Document.GetElementById("csdata");
+                            if (csdata != null)
+                            {
+                                ExecuteScript("showqem");
+                                entry.QRZ = csdata.Children[0].OuterText.Trim();
+                                entry.DXCC = csdata.Children[1].OuterHtml.Substring(csdata.Children[1].OuterHtml.IndexOf("?dxcc=") + 6, 3);
+                                entry.Country = csdata.Children[1].OuterText.Trim();
+                                entry.Name = csdata.Children[3].Children[0].OuterText.Trim();
+                                string[] rawArray = csdata.Children[3].OuterText.Split(Environment.NewLine.ToCharArray(), StringSplitOptions.RemoveEmptyEntries);
+                                entry.Address1 = rawArray.Length > 1 ? rawArray[1] : String.Empty;
+                                entry.Address2 = rawArray.Length > 2 ? rawArray[2] : String.Empty;
+                                entry.Address3 = rawArray.Length > 3 ? rawArray[3] : String.Empty;
+                                entry.Email = (csdata.Children[5].OuterText != null) ? csdata.Children[5].OuterText.Replace("Email: ", "") : string.Empty;
+                            }
                         }
-                        int i = 0;
+                        else
+                        {
+                            entry.QRZ = QRZsearch;
+                            entry.Name = "No result found!";
+                        }
+                        ret = entry;
                     }
-
                 }
-
             }
-
             return ret;
-
-
         }
 
         #endregion
