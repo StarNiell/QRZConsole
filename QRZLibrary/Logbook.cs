@@ -28,6 +28,7 @@ namespace QRZLibrary
 
         private string _qrzUrl = "https://www.qrz.com";
         private string _logbookUrl = "https://logbook.qrz.com";
+        private string _lookupUrl = "https://www.qrz.com/lookup";
         private string _qrz;
         private string _password;
         private string _loginPage = "/login";
@@ -43,6 +44,7 @@ namespace QRZLibrary
         public string LogbookUrl { get => _logbookUrl; set => _logbookUrl = value; }
         public long PageLoadTimeOut { get => _pageLoadTimeOut; set => _pageLoadTimeOut = value; }
         public int CpuSleep { get => _cpuSleep; set => _cpuSleep = value; }
+        public string LookupUrl { get => _lookupUrl; set => _lookupUrl = value; }
 
         public Logbook()
         {
@@ -215,9 +217,10 @@ namespace QRZLibrary
             bool pageLoaded = false;
 
             if (wb.Url != null)
-            { 
-                pageLoaded = (wb.Url.OriginalString.Contains(_qrzUrl)) 
-                          || (wb.Url.OriginalString.Contains(_logbookUrl));
+            {
+                pageLoaded = (wb.Url.OriginalString.Contains(_qrzUrl))
+                          || (wb.Url.OriginalString.Contains(_logbookUrl))
+                          || (wb.Url.OriginalString.Contains(_lookupUrl));
             }
                 
             else
@@ -331,6 +334,61 @@ namespace QRZLibrary
                 ret = wb.Document.Title == "Logbook by QRZ.COM";
 
             return ret;
+        }
+
+        public bool GotoLookup()
+        {
+            bool ret = false;
+            if (NavigateAndWait(LookupUrl))
+                ret = wb.Document.Title.Equals("QRZ Callsign Database Search by QRZ Ham Radio");
+
+            return ret;
+        }
+
+        public string ExecQuery(string QRZsearch)
+        {
+            string ret = string.Empty;
+            bool queryTimeOut = false;
+            long timeout = PageLoadTimeOut;
+            bool resultPageLoaded = false;
+
+            if (GotoLookup())
+            {
+                SetElementValue("tquery", QRZsearch.ToUpper());
+                HtmlElement sbmt = wb.Document.GetElementById("tsubmit");
+                if (sbmt != null)
+                {
+                    Stopwatch stopwatch = new Stopwatch();
+                    stopwatch.Start();
+                    InvokeMember(sbmt, "Click");
+                    while (!resultPageLoaded)
+                    {
+                        resultPageLoaded = (wb.Document.GetElementById("csdata") != null);
+                        Application.DoEvents();
+                        Thread.Sleep(CpuSleep);
+                        if (stopwatch.ElapsedMilliseconds >= timeout)
+                        {
+                            queryTimeOut = true;
+                            break;
+                        }
+                    }
+                    if (!queryTimeOut)
+                    {
+                        HtmlElement csdata = wb.Document.GetElementById("csdata");
+                        if (csdata != null)
+                        {
+                            ret = csdata.OuterText;
+                        }
+                        int i = 0;
+                    }
+
+                }
+
+            }
+
+            return ret;
+
+
         }
 
         #endregion

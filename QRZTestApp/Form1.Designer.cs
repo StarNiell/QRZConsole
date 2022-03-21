@@ -32,21 +32,23 @@ namespace QRZTestApp
             this.tabControl1 = new System.Windows.Forms.TabControl();
             this.tabPage1 = new System.Windows.Forms.TabPage();
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
+            this.button16 = new System.Windows.Forms.Button();
+            this.button15 = new System.Windows.Forms.Button();
+            this.button14 = new System.Windows.Forms.Button();
+            this.button13 = new System.Windows.Forms.Button();
+            this.button12 = new System.Windows.Forms.Button();
             this.textBox1 = new System.Windows.Forms.TextBox();
             this.tabPage2 = new System.Windows.Forms.TabPage();
             this.splitContainer2 = new System.Windows.Forms.SplitContainer();
-            this.textBox2 = new System.Windows.Forms.TextBox();
-            this.button12 = new System.Windows.Forms.Button();
-            this.button13 = new System.Windows.Forms.Button();
-            this.button14 = new System.Windows.Forms.Button();
-            this.button15 = new System.Windows.Forms.Button();
-            this.button16 = new System.Windows.Forms.Button();
-            this.webBrowser1 = new System.Windows.Forms.WebBrowser();
             this.button5 = new System.Windows.Forms.Button();
             this.button4 = new System.Windows.Forms.Button();
             this.button3 = new System.Windows.Forms.Button();
             this.button2 = new System.Windows.Forms.Button();
             this.button1 = new System.Windows.Forms.Button();
+            this.textBox2 = new System.Windows.Forms.TextBox();
+            this.webBrowser1 = new System.Windows.Forms.WebBrowser();
+            this.button6 = new System.Windows.Forms.Button();
+            this.textBox3 = new System.Windows.Forms.TextBox();
             this.tabControl1.SuspendLayout();
             this.tabPage1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
@@ -91,6 +93,8 @@ namespace QRZTestApp
             // 
             // splitContainer1.Panel1
             // 
+            this.splitContainer1.Panel1.Controls.Add(this.textBox3);
+            this.splitContainer1.Panel1.Controls.Add(this.button6);
             this.splitContainer1.Panel1.Controls.Add(this.button16);
             this.splitContainer1.Panel1.Controls.Add(this.button15);
             this.splitContainer1.Panel1.Controls.Add(this.button14);
@@ -100,6 +104,56 @@ namespace QRZTestApp
             this.splitContainer1.Size = new System.Drawing.Size(994, 697);
             this.splitContainer1.SplitterDistance = 424;
             this.splitContainer1.TabIndex = 1;
+            // 
+            // button16
+            // 
+            this.button16.Location = new System.Drawing.Point(92, 3);
+            this.button16.Name = "button16";
+            this.button16.Size = new System.Drawing.Size(70, 31);
+            this.button16.TabIndex = 24;
+            this.button16.Text = "Login";
+            this.button16.UseVisualStyleBackColor = true;
+            this.button16.Click += new System.EventHandler(this.button16_Click);
+            // 
+            // button15
+            // 
+            this.button15.Location = new System.Drawing.Point(320, 3);
+            this.button15.Name = "button15";
+            this.button15.Size = new System.Drawing.Size(70, 31);
+            this.button15.TabIndex = 23;
+            this.button15.Text = "Logbook";
+            this.button15.UseVisualStyleBackColor = true;
+            this.button15.Click += new System.EventHandler(this.button15_Click);
+            // 
+            // button14
+            // 
+            this.button14.Location = new System.Drawing.Point(244, 3);
+            this.button14.Name = "button14";
+            this.button14.Size = new System.Drawing.Size(70, 31);
+            this.button14.TabIndex = 22;
+            this.button14.Text = "QRZ Home";
+            this.button14.UseVisualStyleBackColor = true;
+            this.button14.Click += new System.EventHandler(this.button14_Click);
+            // 
+            // button13
+            // 
+            this.button13.Location = new System.Drawing.Point(168, 3);
+            this.button13.Name = "button13";
+            this.button13.Size = new System.Drawing.Size(70, 31);
+            this.button13.TabIndex = 21;
+            this.button13.Text = "Log Out";
+            this.button13.UseVisualStyleBackColor = true;
+            this.button13.Click += new System.EventHandler(this.button13_Click);
+            // 
+            // button12
+            // 
+            this.button12.Location = new System.Drawing.Point(16, 3);
+            this.button12.Name = "button12";
+            this.button12.Size = new System.Drawing.Size(70, 31);
+            this.button12.TabIndex = 20;
+            this.button12.Text = "Is Logged";
+            this.button12.UseVisualStyleBackColor = true;
+            this.button12.Click += new System.EventHandler(this.button12_Click);
             // 
             // textBox1
             // 
@@ -148,76 +202,6 @@ namespace QRZTestApp
             this.splitContainer2.SplitterDistance = 123;
             this.splitContainer2.TabIndex = 0;
             // 
-            // textBox2
-            // 
-            this.textBox2.Dock = System.Windows.Forms.DockStyle.Right;
-            this.textBox2.Font = new System.Drawing.Font("Consolas", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.textBox2.Location = new System.Drawing.Point(300, 0);
-            this.textBox2.Multiline = true;
-            this.textBox2.Name = "textBox2";
-            this.textBox2.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-            this.textBox2.Size = new System.Drawing.Size(690, 119);
-            this.textBox2.TabIndex = 1;
-            // 
-            // button12
-            // 
-            this.button12.Location = new System.Drawing.Point(16, 3);
-            this.button12.Name = "button12";
-            this.button12.Size = new System.Drawing.Size(70, 31);
-            this.button12.TabIndex = 20;
-            this.button12.Text = "Is Logged";
-            this.button12.UseVisualStyleBackColor = true;
-            this.button12.Click += new System.EventHandler(this.button12_Click);
-            // 
-            // button13
-            // 
-            this.button13.Location = new System.Drawing.Point(168, 3);
-            this.button13.Name = "button13";
-            this.button13.Size = new System.Drawing.Size(70, 31);
-            this.button13.TabIndex = 21;
-            this.button13.Text = "Log Out";
-            this.button13.UseVisualStyleBackColor = true;
-            this.button13.Click += new System.EventHandler(this.button13_Click);
-            // 
-            // button14
-            // 
-            this.button14.Location = new System.Drawing.Point(244, 3);
-            this.button14.Name = "button14";
-            this.button14.Size = new System.Drawing.Size(70, 31);
-            this.button14.TabIndex = 22;
-            this.button14.Text = "QRZ Home";
-            this.button14.UseVisualStyleBackColor = true;
-            this.button14.Click += new System.EventHandler(this.button14_Click);
-            // 
-            // button15
-            // 
-            this.button15.Location = new System.Drawing.Point(320, 3);
-            this.button15.Name = "button15";
-            this.button15.Size = new System.Drawing.Size(70, 31);
-            this.button15.TabIndex = 23;
-            this.button15.Text = "Logbook";
-            this.button15.UseVisualStyleBackColor = true;
-            this.button15.Click += new System.EventHandler(this.button15_Click);
-            // 
-            // button16
-            // 
-            this.button16.Location = new System.Drawing.Point(92, 3);
-            this.button16.Name = "button16";
-            this.button16.Size = new System.Drawing.Size(70, 31);
-            this.button16.TabIndex = 24;
-            this.button16.Text = "Login";
-            this.button16.UseVisualStyleBackColor = true;
-            this.button16.Click += new System.EventHandler(this.button16_Click);
-            // 
-            // webBrowser1
-            // 
-            this.webBrowser1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.webBrowser1.Location = new System.Drawing.Point(0, 0);
-            this.webBrowser1.MinimumSize = new System.Drawing.Size(20, 20);
-            this.webBrowser1.Name = "webBrowser1";
-            this.webBrowser1.Size = new System.Drawing.Size(990, 566);
-            this.webBrowser1.TabIndex = 11;
-            // 
             // button5
             // 
             this.button5.Location = new System.Drawing.Point(145, 78);
@@ -263,6 +247,44 @@ namespace QRZTestApp
             this.button1.Text = "button1";
             this.button1.UseVisualStyleBackColor = true;
             // 
+            // textBox2
+            // 
+            this.textBox2.Dock = System.Windows.Forms.DockStyle.Right;
+            this.textBox2.Font = new System.Drawing.Font("Consolas", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.textBox2.Location = new System.Drawing.Point(300, 0);
+            this.textBox2.Multiline = true;
+            this.textBox2.Name = "textBox2";
+            this.textBox2.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
+            this.textBox2.Size = new System.Drawing.Size(690, 119);
+            this.textBox2.TabIndex = 1;
+            // 
+            // webBrowser1
+            // 
+            this.webBrowser1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.webBrowser1.Location = new System.Drawing.Point(0, 0);
+            this.webBrowser1.MinimumSize = new System.Drawing.Size(20, 20);
+            this.webBrowser1.Name = "webBrowser1";
+            this.webBrowser1.Size = new System.Drawing.Size(990, 566);
+            this.webBrowser1.TabIndex = 11;
+            // 
+            // button6
+            // 
+            this.button6.Location = new System.Drawing.Point(456, 3);
+            this.button6.Name = "button6";
+            this.button6.Size = new System.Drawing.Size(70, 31);
+            this.button6.TabIndex = 25;
+            this.button6.Text = "< Lookup";
+            this.button6.UseVisualStyleBackColor = true;
+            this.button6.Click += new System.EventHandler(this.button6_Click_1);
+            // 
+            // textBox3
+            // 
+            this.textBox3.Location = new System.Drawing.Point(397, 9);
+            this.textBox3.Name = "textBox3";
+            this.textBox3.Size = new System.Drawing.Size(53, 20);
+            this.textBox3.TabIndex = 26;
+            this.textBox3.Text = "IU8NQI";
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -307,6 +329,8 @@ namespace QRZTestApp
         private System.Windows.Forms.Button button3;
         private System.Windows.Forms.Button button2;
         private System.Windows.Forms.Button button1;
+        private System.Windows.Forms.Button button6;
+        private System.Windows.Forms.TextBox textBox3;
     }
 }
 

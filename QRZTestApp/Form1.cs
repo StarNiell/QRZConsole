@@ -208,5 +208,12 @@ namespace QRZTestApp
         {
 
         }
+
+        private void button6_Click_1(object sender, EventArgs e)
+        {
+            string QRZtoSearch = textBox3.Text;
+            addMonitor($"ExecQuery {QRZtoSearch}");
+            addMonitor($"Resut = {qrz.ExecQuery(QRZtoSearch)}");
+        }
     }
 }
