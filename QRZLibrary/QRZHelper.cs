@@ -37,15 +37,26 @@ namespace QRZLibrary
             return null;
         }
 
-        public static HtmlElement GetElementContainsValue(HtmlElement parent, string value)
+        public static HtmlElement GetElementContainsValue(HtmlElement parent, string value, string classname = "")
         {
             foreach (HtmlElement el in parent.Children)
             {
-                if (el.InnerText != null && el.InnerText.Contains(value)) {
+                if (el.InnerText != null && el.InnerText.Contains(value) && (classname == "" || el.GetAttribute("className") == classname)) {
                     return el;
                 }
             }
             return null;
+        }
+
+        public static HtmlElement GetLastChildren(HtmlElement parent, string tagname = "")
+        {
+            HtmlElement ret = null;
+            foreach (HtmlElement el in parent.Children)
+            {
+                if (tagname == "" || el.TagName == tagname)
+                    ret = el;
+            }
+            return ret;
         }
 
     }

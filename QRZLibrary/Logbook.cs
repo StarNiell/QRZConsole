@@ -28,6 +28,8 @@ namespace QRZLibrary
         public delegate void ErrorEventHaldler(object sender, OnErrorEventArgs e);
         public event ErrorEventHaldler Error;
 
+        private bool flagDocumentCompleted = false;
+
         private string _qrzUrl = "https://www.qrz.com";
         private string _logbookUrl = "https://logbook.qrz.com";
         private string _lookupUrl = "https://www.qrz.com/lookup";
@@ -66,10 +68,13 @@ namespace QRZLibrary
 
         private void Wb_DocumentCompleted(object sender, WebBrowserDocumentCompletedEventArgs e)
         {
+            flagDocumentCompleted = true;
+
             string log = $"Wb_DocumentCompleted - Url={e.Url}";
             Debug.WriteLine(log);
 
             ActionStateChanged();
+
         }
 
         private bool NavigateAndWait(string Url)
@@ -113,8 +118,9 @@ namespace QRZLibrary
         {
             Stopwatch stopwatch = new Stopwatch();
             stopwatch.Start();
+            flagDocumentCompleted = false;
             el.InvokeMember(memberToInvoke);
-            while (wb.ReadyState != WebBrowserReadyState.Complete)
+            while (!flagDocumentCompleted)
             {
                 Application.DoEvents();
                 Thread.Sleep(CpuSleep);
@@ -300,7 +306,7 @@ namespace QRZLibrary
                 HtmlElement el = QRZHelper.GetElementByTagAndClassName(wb.Document.Body, "ul", "primary-navigation");
                 if (el != null)
                 {
-                    HtmlElement el1 = QRZHelper.GetElementContainsValue(el, Qrz);
+                    HtmlElement el1 = QRZHelper.GetLastChildren(el, "LI"); //QRZHelper.GetElementContainsValue(el, Qrz, "leaf last");
                     if (el1 != null)
                     {
                         HtmlElement sub = QRZHelper.GetElementByTagAndClassName(el1, "ul", "sub");
@@ -329,21 +335,27 @@ namespace QRZLibrary
             return NavigateAndWait(QrzUrl);
         }
 
-        public bool GotoLogbook()
+        public bool GotoLogbook(bool ForceReload = false)
         {
             bool ret = false;
-            if (NavigateAndWait(LogbookUrl))
-                ret = wb.Document.Title == "Logbook by QRZ.COM";
+            ret = (!ForceReload && wb.Document != null && wb.Document.Title == "Logbook by QRZ.COM");
+            if (!ret)
+            {
+                if (NavigateAndWait(LogbookUrl))
+                    ret = wb.Document.Title == "Logbook by QRZ.COM";
+            }
 
             return ret;
         }
 
-        public bool GotoLookup()
+        public bool GotoLookup(bool ForceReload = false)
         {
             bool ret = false;
-            if (NavigateAndWait(LookupUrl))
-                ret = wb.Document.Title.Equals("QRZ Callsign Database Search by QRZ Ham Radio");
-
+            ret = (!ForceReload && wb.Document != null && wb.Document?.GetElementById("tquery") != null);
+            if (!ret) {
+                if (NavigateAndWait(LookupUrl))
+                    ret = wb.Document.Title.Equals("QRZ Callsign Database Search by QRZ Ham Radio");
+            }
             return ret;
         }
 
@@ -363,17 +375,17 @@ namespace QRZLibrary
                 {
                     Stopwatch stopwatch = new Stopwatch();
                     stopwatch.Start();
+                    flagDocumentCompleted = false;
                     InvokeMember(sbmt, "Click");
                     while (!resultPageLoaded)
                     {
-                        bool test = (wb.Document.GetElementById("qrzcenter") != null);
-                        if (test)
+                        if (flagDocumentCompleted)
                         {
-                            resultPageLoaded = (wb.Document.GetElementById("qrzcenter").OuterText.IndexOf($"no results for {QRZsearch.ToUpper()}") > 0);
+                            if ((wb.Document.GetElementById("qrzcenter") != null))
+                                resultPageLoaded = (wb.Document.GetElementById("qrzcenter").OuterText.IndexOf($"no results for {QRZsearch.ToUpper()}") > 0);
+                            resultPageLoaded = resultPageLoaded || (wb.Document.GetElementById("csdata") != null) || (wb.Document.GetElementById("csdata") != null);
                         }
 
-                        resultPageLoaded = resultPageLoaded || (wb.Document.GetElementById("csdata") != null) || (wb.Document.GetElementById("csdata") != null);
-                                    //|| (wb.Document.GetElementById("tqry") != null);
                         Application.DoEvents();
                         Thread.Sleep(CpuSleep);
                         if (stopwatch.ElapsedMilliseconds >= timeout)
@@ -395,11 +407,15 @@ namespace QRZLibrary
                                 entry.QRZ = csdata.Children[0].OuterText.Trim();
                                 entry.DXCC = csdata.Children[1].OuterHtml.Substring(csdata.Children[1].OuterHtml.IndexOf("?dxcc=") + 6, 3);
                                 entry.Country = csdata.Children[1].OuterText.Trim();
-                                entry.Name = csdata.Children[3].Children[0].OuterText.Trim();
-                                string[] rawArray = csdata.Children[3].OuterText.Split(Environment.NewLine.ToCharArray(), StringSplitOptions.RemoveEmptyEntries);
-                                entry.Address1 = rawArray.Length > 1 ? rawArray[1] : String.Empty;
-                                entry.Address2 = rawArray.Length > 2 ? rawArray[2] : String.Empty;
-                                entry.Address3 = rawArray.Length > 3 ? rawArray[3] : String.Empty;
+                                if (csdata.Children[3].Children.Count > 0)
+                                    entry.Name = csdata.Children[3].Children[0].OuterText?.Trim();
+                                if (csdata.Children[3].OuterText != null)
+                                {
+                                    string[] rawArray = csdata.Children[3].OuterText.Split(Environment.NewLine.ToCharArray(), StringSplitOptions.RemoveEmptyEntries);
+                                    entry.Address1 = rawArray.Length > 1 ? rawArray[1] : String.Empty;
+                                    entry.Address2 = rawArray.Length > 2 ? rawArray[2] : String.Empty;
+                                    entry.Address3 = rawArray.Length > 3 ? rawArray[3] : String.Empty;
+                                }
                                 entry.Email = (csdata.Children[5].OuterText != null) ? csdata.Children[5].OuterText.Replace("Email: ", "") : string.Empty;
                             }
                         }
@@ -411,6 +427,111 @@ namespace QRZLibrary
                         ret = entry;
                     }
                 }
+            }
+            return ret;
+        }
+
+        public int GetQSOsCount(bool ForceReload = false)
+        {
+            int ret = -1;
+
+            if (GotoLogbook(ForceReload))
+            {
+                HtmlElement el = wb.Document.GetElementById("lbmenu");
+                if (el != null)
+                {
+                    HtmlElement el1 = QRZHelper.GetElementByTagAndClassName(el, "SPAN", " hide-lt-800 qcnt");
+                    if (el1 != null)
+                    {
+                        HtmlElement el2 = QRZHelper.GetElementByTagAndClassName(el1, "SPAN", "mitm");
+                        if (int.TryParse(el2.InnerText, out int tmp))
+                            ret = tmp;
+                    }
+                }
+
+            }
+
+            return ret;
+        }
+
+
+        
+        public int GetLogbookPages(bool ForceReload = false)
+        {
+            int ret = -1;
+
+            if (GotoLogbook(ForceReload))
+            {
+                HtmlElement el = wb.Document.GetElementById("listnav");
+                if (el != null)
+                {
+                    HtmlElement el1 = QRZHelper.GetElementByTagAndClassName(el, "SPAN", "input-group-text  hide-lt-1100");
+                    if (el1 != null)
+                    {
+                        string pages = el1.InnerText?.Replace("of ", "");
+                        if (int.TryParse(pages, out int tmp))
+                            ret = tmp;
+                    }
+                }
+
+            }
+
+            return ret;
+        }
+
+        public int GetCurrentLogbookPage()
+        {
+            int ret = -1;
+
+            if (wb.Document != null && wb.Document.Title == "Logbook by QRZ.COM")
+            {
+                HtmlElement el = wb.Document.GetElementById("ipage");
+                if (el != null)
+                    if (int.TryParse(el.GetAttribute("value"), out int tmp))
+                        ret = tmp;
+            }
+            return ret;
+        }
+
+
+        public int GotoLoogbookPage(int page)
+        {
+            int ret = -1;
+
+            if (wb.Document != null && wb.Document.Title == "Logbook by QRZ.COM")
+            {
+                HtmlElement el = wb.Document.GetElementById("ipage");
+                if (el != null)
+                {
+                    int cp = -1;
+
+                    el.SetAttribute("value", page.ToString());
+
+                    Stopwatch stopwatch = new Stopwatch();
+                    stopwatch.Start();
+
+                    bool PageLoaded = false;
+                    object[] o = new object[1];
+                    o[0] = "page";
+                    wb.Document.InvokeScript("goto", o);
+                    while (!PageLoaded)
+                    {
+                        if (stopwatch.ElapsedMilliseconds > 1000)
+                        {
+                            HtmlElement loadingDiv = wb.Document.GetElementById("filterLoading");
+                            PageLoaded = (loadingDiv.Style.Contains("display: none"));
+                        }
+
+                        Application.DoEvents();
+                        Thread.Sleep(CpuSleep);
+                        if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
+                            return -1;
+
+                    }
+                    ret = GetCurrentLogbookPage();
+                    ;
+                }
+                   
             }
             return ret;
         }
