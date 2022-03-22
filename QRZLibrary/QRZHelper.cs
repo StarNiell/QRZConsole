@@ -1,10 +1,14 @@
-﻿using System;
+﻿using QRZLibrary.Classes;
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Xml.Serialization;
 
 namespace QRZLibrary
 {
@@ -56,6 +60,39 @@ namespace QRZLibrary
                 if (tagname == "" || el.TagName == tagname)
                     ret = el;
             }
+            return ret;
+        }
+
+        public static int GetIntByString(string input)
+        {
+            int ret = 0;
+
+            if (int.TryParse(input, out int tmp))
+                ret = tmp;
+
+            return ret;
+        }
+
+        public static DateTime GetDateTimeByString(string input)
+        {
+            DateTime ret = DateTime.MinValue;
+
+            if (DateTime.TryParse(input, out DateTime tmp))
+                ret = tmp;
+
+            return ret;
+        }
+
+        public static string SerializeLogbookEntryCollection(List<LogbookEntry> collection)
+        {
+            string ret = string.Empty;
+
+            var aSerializer = new XmlSerializer(typeof(List<LogbookEntry>));
+            StringBuilder sb = new StringBuilder();
+            StringWriter sw = new StringWriter(sb);
+            aSerializer.Serialize(sw, new List<LogbookEntry>(collection)); // pass an instance of A
+            string xmlResult = sw.GetStringBuilder().ToString();
+            ret = xmlResult;
             return ret;
         }
 

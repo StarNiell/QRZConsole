@@ -1,4 +1,5 @@
-﻿using QRZLibrary;
+﻿using Microsoft.Win32;
+using QRZLibrary;
 using QRZLibrary.Classes;
 using System;
 using System.Collections.Generic;
@@ -26,9 +27,6 @@ namespace QRZTestApp
             InitializeComponent();
 
             qrz = new Logbook();
-
-            qrz.Qrz = "IU8NQI";
-            qrz.Password = "Goldendrops2016";
 
             qrz.LoggedIn += Qrz_LoggedIn;
             qrz.Error += Qrz_Error;
@@ -94,18 +92,23 @@ namespace QRZTestApp
 
         private void button16_Click(object sender, EventArgs e)
         {
+            qrz.Qrz = textBox2.Text;
+            qrz.Password = textBox5.Text;
+            SaveRegKey("username", qrz.Qrz);
+            SaveRegKey("password", qrz.Password);
+
             addMonitor($"Login... QRZ=[{qrz.Qrz}] - Password=[{new string('*', qrz.Password.Length)}]");
+            //qrz.LoginAsync();
             qrz.Login();
+
         }
 
         private void button6_Click(object sender, EventArgs e)
         {
-
-        }
-
-        private void button6_Click_1(object sender, EventArgs e)
-        {
             string QRZtoSearch = textBox3.Text;
+
+            SaveRegKey("lookup", QRZtoSearch);
+
             addMonitor($"ExecQuery {QRZtoSearch}...");
             LookupEntry entry = qrz.ExecQuery(QRZtoSearch);
             addMonitor($"Resut = --->");
@@ -118,6 +121,10 @@ namespace QRZTestApp
             addMonitor($"   Address 3 = {entry.Address3}");
             addMonitor($"   Email     = {entry.Email}");
             addMonitor($"------------------------------------");
+        }
+
+        private void button6_Click_1(object sender, EventArgs e)
+        {
         }
 
         private void button7_Click(object sender, EventArgs e)
@@ -140,7 +147,9 @@ namespace QRZTestApp
 
         private void Form1_Load(object sender, EventArgs e)
         {
-
+            textBox2.Text = GetRegKeyValue("username");
+            textBox5.Text = GetRegKeyValue("password");
+            textBox3.Text = GetRegKeyValue("lookup");
         }
 
         private void button10_Click(object sender, EventArgs e)
@@ -152,6 +161,95 @@ namespace QRZTestApp
 
             addMonitor($"Goto Page {page}... ");
             addMonitor($"Current Page = {qrz.GotoLoogbookPage(page)}");
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            int page = 1;
+
+            if (int.TryParse(textBox4.Text, out int tmp))
+                page = tmp;
+
+            addMonitor($"Get Table content Raw {page}... ");
+            addMonitor($"{qrz.GetLogbookPageContentRaw(page)}");
+        }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            int page = 1;
+
+            if (int.TryParse(textBox4.Text, out int tmp))
+                page = tmp;
+
+            addMonitor($"Get Table content {page}... ");
+
+            List<LogbookEntry> lbentries = qrz.GetLogbookPageContent(page);
+            if (lbentries != null)
+            {
+                if (lbentries.Count > 0)
+                {
+                    string xml = QRZHelper.SerializeLogbookEntryCollection(lbentries);
+                    addMonitor("");
+                    addMonitor($"************************************************************************************************");
+                    addMonitor(xml);
+                    addMonitor($"************************************************************************************************");
+                    addMonitor("");
+                }
+                else
+                    addMonitor("Found 0 entries");
+            }
+        }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            int page = 1;
+
+            if (int.TryParse(textBox4.Text, out int tmp))
+                page = tmp;
+
+            if (page > 1)
+                page = page - 1;
+
+            textBox4.Text = page.ToString();
+
+            button10_Click(sender, e);
+        }
+
+        private void button4_Click(object sender, EventArgs e)
+        {
+            int page = 1;
+
+            if (int.TryParse(textBox4.Text, out int tmp))
+                page = tmp;
+
+            page++;
+
+            textBox4.Text = page.ToString();
+
+            button10_Click(sender, e);
+        }
+
+        private void SaveRegKey(string key, string value)
+        {
+            RegistryKey regkey = Registry.CurrentUser.CreateSubKey($@"SOFTWARE\{Application.ProductName}");
+
+            regkey.SetValue(key, value);
+            regkey.Close();
+        }
+
+        private string GetRegKeyValue(string key)
+        {
+            string ret = string.Empty;
+
+            RegistryKey regkey = Registry.CurrentUser.OpenSubKey($@"SOFTWARE\{Application.ProductName}");
+
+            //if it does exist, retrieve the stored values  
+            if (regkey != null)
+            {
+                ret = regkey.GetValue(key)?.ToString();
+                regkey.Close();
+            }
+            return ret;
         }
     }
 }

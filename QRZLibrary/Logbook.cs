@@ -17,7 +17,6 @@ namespace QRZLibrary
     public class Logbook
     {
 
-        //WebBrowser wb;
         WebBrowser wb;
 
         WBActions wbAction;
@@ -28,6 +27,7 @@ namespace QRZLibrary
         public delegate void ErrorEventHaldler(object sender, OnErrorEventArgs e);
         public event ErrorEventHaldler Error;
 
+        private int PagesLoadedAfterLogin = 0;
         private bool flagDocumentCompleted = false;
 
         private string _qrzUrl = "https://www.qrz.com";
@@ -38,9 +38,6 @@ namespace QRZLibrary
         private string _loginPage = "/login";
         private long _pageLoadTimeOut = 30000;
         private int _cpuSleep = 50;
-
-        //private int PagesCountLoadAfterLogin = 11;
-        //private int PageCounterLoadingAfterLogin = 0;
 
         public string Qrz { get => _qrz; set => _qrz = value; }
         public string Password { get => _password; set => _password = value; }
@@ -58,6 +55,8 @@ namespace QRZLibrary
             wb = new WebBrowser();
             wb.ScriptErrorsSuppressed = true;
             wb.DocumentCompleted += Wb_DocumentCompleted;
+
+            //For Async methods
             tmrActionState.Enabled = false;
             tmrActionState.Interval = 1000;
             tmrActionState.Tick += tmrActionState_Tick;
@@ -109,19 +108,24 @@ namespace QRZLibrary
         }
 
 
-        private bool InvokeMemberAndWait(HtmlElement el, string memberToInvoke)
+        private bool InvokeMemberAndWaitReload(HtmlElement el, string memberToInvoke)
         {
-            return InvokeMemberAndWait(el, memberToInvoke, PageLoadTimeOut);
+            return InvokeMemberAndWaitReload(el, memberToInvoke, PageLoadTimeOut);
         }
 
-        private bool InvokeMemberAndWait(HtmlElement el, string memberToInvoke, long timeout)
+        private bool InvokeMemberAndWaitReload(HtmlElement el, string memberToInvoke, long timeout)
         {
+            bool InvokeCompleted = false;
+
             Stopwatch stopwatch = new Stopwatch();
             stopwatch.Start();
             flagDocumentCompleted = false;
             el.InvokeMember(memberToInvoke);
-            while (!flagDocumentCompleted)
+            while (!InvokeCompleted)
             {
+                if (stopwatch.ElapsedMilliseconds > 1000)
+                    InvokeCompleted = flagDocumentCompleted;
+
                 Application.DoEvents();
                 Thread.Sleep(CpuSleep);
                 if (stopwatch.ElapsedMilliseconds >= timeout)
@@ -201,15 +205,27 @@ namespace QRZLibrary
                     setPWD();
                     break;
                 case WBActions.openQRZ:
+                    PagesLoadedAfterLogin++;
                     if (wb.Document.Title == "Callsign Database - QRZ.com")
                     {
-                        //PageCounterLoadingAfterLogin++;
-                        //if (PageCounterLoadingAfterLogin >= PagesCountLoadAfterLogin)
-                        //{
+                        PagesLoadedAfterLogin = 0;
+                        wbAction = WBActions.noAction;
+                        if (LoggedIn != null)
+                            LoggedIn(this, new EventArgs());
+                    }
+                    else
+                    {
+                        if (PagesLoadedAfterLogin >= 1)
+                        {
+                            PagesLoadedAfterLogin = 0;
                             wbAction = WBActions.noAction;
-                            if (LoggedIn != null)
-                                LoggedIn(this, new EventArgs());
-                        //}
+                            if (Error != null)
+                            {
+                                OnErrorEventArgs errevarg = new OnErrorEventArgs();
+                                errevarg.ex = new Exception("Unable to Login QRZ.COM. Check Username and password");
+                                Error(this, errevarg);
+                            }
+                        }
                     }
                     break;
             }
@@ -240,30 +256,112 @@ namespace QRZLibrary
                 HtmlElement el = QRZHelper.GetElementByTagAndClassName(wb.Document.Body, "ul", "primary-navigation");
                 if (el != null)
                 {
-                    HtmlElement elm = QRZHelper.GetElementContainsValue(el, Qrz);
-                    ret = (elm != null);
-
+                    HtmlElement el1 = QRZHelper.GetLastChildren(el, "LI");
+                    if (el1 != null)
+                    {
+                        HtmlElement sub = QRZHelper.GetElementByTagAndClassName(el1, "ul", "sub");
+                        if (sub != null)
+                        {
+                            HtmlElement elm = QRZHelper.GetElementContainsValue(sub, "Logout");
+                            ret = (elm != null);
+                        }
+                    }
                 }
             }
-
             return ret;
         }
 
-        public void Login()
+        public bool Login()
         {
-            Login(Qrz, Password);
+            return Login(Qrz, Password);
         }
 
-        public void Login(string qrz, string password)
+        public bool Login(string qrz, string password)
         {
-            //PageCounterLoadingAfterLogin = 0;
+            bool ret = false;
+
+            bool stepDone = false;
+            bool waitDone = false;
+            Stopwatch stopwatch = null;
+
+            Qrz = qrz;
+            Password = password;
+
+            if (NavigateAndWait(QrzUrl + _loginPage))
+            {
+                if (wb.Document.Title == "Login - QRZ.com")
+                {
+                    // Set the username ***************************************************************
+                    SetElementValue("username", Qrz);
+                    ExecuteScript("next");
+
+                    //wait for new step -----------
+                    stopwatch = new Stopwatch();
+                    stopwatch.Start();
+
+                    while (!waitDone)
+                    {
+                        stepDone = waitDone = (wb.Document.GetElementById("trustInfo") != null);
+                        waitDone = (wb.Document.GetElementById("usernameError") != null);
+
+                        Application.DoEvents();
+                        Thread.Sleep(CpuSleep);
+                        if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
+                        {
+                            break;
+                        }
+                    }
+
+                    if (!stepDone)
+                        return false;
+
+                    // Set the password ***************************************************************
+                    SetElementValue("password", Password);
+                    ExecuteScript("next");
+
+                    //wait for new step -----------
+                    waitDone = false;
+                    stepDone = false;
+
+                    stopwatch = new Stopwatch();
+                    stopwatch.Start();
+
+                    while (!waitDone)
+                    {
+                        if (stopwatch.ElapsedMilliseconds > 1000)
+                        {
+                            stepDone = waitDone = (wb.Document.Title == "Callsign Database - QRZ.com");
+                            waitDone = (wb.Document.Title == "Login - QRZ.com");
+                        }
+
+                        Application.DoEvents();
+                        Thread.Sleep(CpuSleep);
+                        if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
+                        {
+                            break;
+                        }
+                    }
+
+                    if (!stepDone)
+                        return false;
+                    else
+                        ret = true;
+
+                }
+            }
+            return ret;
+        }
+
+        public void LoginAsync()
+        {
+            LoginAsync(Qrz, Password);
+        }
+
+        public void LoginAsync(string qrz, string password)
+        {
             Qrz = qrz;
 
             Password = password;
-
-            //wbAction = WBActions.start;
-            //Navigate(QrzUrl + _loginPage);
-
 
             if (NavigateAndWait(QrzUrl + _loginPage))
             {
@@ -295,8 +393,6 @@ namespace QRZLibrary
 
         }
 
-
-
         public bool LogOut()
         {
             bool ret = false;
@@ -306,7 +402,7 @@ namespace QRZLibrary
                 HtmlElement el = QRZHelper.GetElementByTagAndClassName(wb.Document.Body, "ul", "primary-navigation");
                 if (el != null)
                 {
-                    HtmlElement el1 = QRZHelper.GetLastChildren(el, "LI"); //QRZHelper.GetElementContainsValue(el, Qrz, "leaf last");
+                    HtmlElement el1 = QRZHelper.GetLastChildren(el, "LI");
                     if (el1 != null)
                     {
                         HtmlElement sub = QRZHelper.GetElementByTagAndClassName(el1, "ul", "sub");
@@ -318,7 +414,7 @@ namespace QRZLibrary
                                 HtmlElement link = elm.FirstChild;
                                 if (link != null)
                                 {
-                                    ret = InvokeMemberAndWait(link, "Click");
+                                    ret = InvokeMemberAndWaitReload(link, "Click");
                                 }
                             }
                             
@@ -532,6 +628,96 @@ namespace QRZLibrary
                     ;
                 }
                    
+            }
+            return ret;
+        }
+
+        public string GetLogbookPageContentRaw(int page)
+        {
+            string ret = string.Empty;
+
+            if (GotoLoogbookPage(page) == page)
+            {
+                HtmlElement table = wb.Document.GetElementById("lbtab");
+                HtmlElementCollection rows = table.GetElementsByTagName("TR");
+
+                foreach (HtmlElement row in rows)
+                {
+                    HtmlElementCollection cols = row.GetElementsByTagName("TD");
+                    foreach (HtmlElement cell in cols)
+                    {
+                        ret += cell.InnerText + "\t";
+                    }
+                    ret += "\r\n";
+                }
+
+            }
+            return ret;
+        }
+
+        public List<LogbookEntry> GetLogbookPageContent(int page)
+        {
+            List<LogbookEntry> ret = new List<LogbookEntry>();
+            if (GotoLoogbookPage(page) == page)
+            {
+                HtmlElement table = wb.Document.GetElementById("lbtab");
+                HtmlElementCollection rows = table.GetElementsByTagName("TR");
+
+                foreach (HtmlElement row in rows)
+                {
+                    LogbookEntry lbrow = new LogbookEntry();
+                    HtmlElementCollection cols = row.GetElementsByTagName("TD");
+                    int currCol = 0;
+                    string tmp = string.Empty;
+                    string DateTimeStr = string.Empty;
+                    foreach (HtmlElement cell in cols)
+                    {
+                        currCol++;
+                        switch (currCol)
+                        {
+                            case 1:
+                                lbrow.position = QRZHelper.GetIntByString(cell.InnerText);
+                                break;
+                            case 2:
+                                DateTimeStr = cell.InnerText;
+                                break;
+                            case 3:
+                                DateTimeStr += $" {cell.InnerText}";
+                                lbrow.QSODateTime = QRZHelper.GetDateTimeByString(DateTimeStr);
+                                break;
+                            case 4:
+                                lbrow.Call = cell.InnerText;
+                                break;
+                            case 5:
+                                lbrow.Band = cell.InnerText;
+                                break;
+                            case 6:
+                                lbrow.Frequency = cell.InnerText;
+                                break;
+                            case 7:
+                                lbrow.Mode = cell.InnerText;
+                                break;
+                            case 8:
+                                lbrow.GridLocator = cell.InnerText;
+                                break;
+                            case 9:
+                                // Flag Image
+                                break;
+                            case 10:
+                                lbrow.Country = cell.InnerText;
+                                break;
+                            case 11:
+                                lbrow.OperatorName = cell.InnerText;
+                                break;
+                            case 12:
+                                lbrow.Comments = cell.InnerText;
+                                break;
+                        }
+
+                    }
+                    if (lbrow.position > 0)
+                        ret.Add(lbrow);
+                }
             }
             return ret;
         }
