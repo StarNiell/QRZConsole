@@ -28,13 +28,16 @@ namespace QRZLibrary
 
         public static HtmlElement GetElementByTagAndClassName(HtmlElement parent, string tagname, string classname)
         {
-            HtmlElementCollection els = parent.GetElementsByTagName(tagname);
-
-            foreach (HtmlElement el in els)
+            if (parent != null)
             {
-                if (el.GetAttribute("className") == classname)
+                HtmlElementCollection els = parent.GetElementsByTagName(tagname);
+
+                foreach (HtmlElement el in els)
                 {
-                    return el;
+                    if (el.GetAttribute("className") == classname)
+                    {
+                        return el;
+                    }
                 }
             }
 

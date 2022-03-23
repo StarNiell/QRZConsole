@@ -12,7 +12,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using Timer = System.Windows.Forms.Timer;
 
 namespace QRZTestApp
 {
@@ -27,89 +26,79 @@ namespace QRZTestApp
             InitializeComponent();
 
             qrz = new Logbook();
-
-            qrz.LoggedIn += Qrz_LoggedIn;
-            qrz.Error += Qrz_Error;
-
         }
 
 
-        private void Qrz_Error(object sender, OnErrorEventArgs e)
-        {
-            addMonitor($"### {e.ex.Message}");
-        }
-
-        private void Qrz_LoggedIn(object sender, EventArgs e)
-        {
-            addMonitor($"Login completed.");
-        }
-
-        
         private void addMonitor(string log)
         {
-            if (textBox1.InvokeRequired)
+            if (txtMonitor.InvokeRequired)
             {
                 var d = new SafeCallDelegate(addMonitor);
-                textBox1.Invoke(d, new object[] { log });
+                txtMonitor.Invoke(d, new object[] { log });
             }
             else
             {
-                textBox1.AppendText(log + Environment.NewLine);
-                textBox1.SelectionStart = textBox1.Text.Length;
-                textBox1.ScrollToCaret();
+                txtMonitor.AppendText(log + Environment.NewLine);
+                txtMonitor.SelectionStart = txtMonitor.Text.Length;
+                txtMonitor.ScrollToCaret();
             }
-            
         }
 
-        private void webBrowser1_DocumentCompleted(object sender, WebBrowserDocumentCompletedEventArgs e)
-        {
-
-        }
-
-        private void button12_Click(object sender, EventArgs e)
+        private void btnIsLogged_Click(object sender, EventArgs e)
         {
             addMonitor($"Start IsLogged request...");
             addMonitor($"IsLogged = {qrz.IsLogged().ToString()}");
         }
 
-        private void button13_Click(object sender, EventArgs e)
+        private void btnLogOut_Click(object sender, EventArgs e)
         {
             addMonitor($"Start Log Out...");
             addMonitor($"Logout = {qrz.LogOut().ToString()}");
         }
 
-        private void button14_Click(object sender, EventArgs e)
+        private void btnQRZHome_Click(object sender, EventArgs e)
         {
             addMonitor($"Load QRZ Home...");
             addMonitor($"Load QRZ Home = {qrz.GotoQrzHome()}");
         }
 
-        private void button15_Click(object sender, EventArgs e)
+        private void btnGotoLookbook_Click(object sender, EventArgs e)
         {
             addMonitor($"Load Logbook...");
             addMonitor($"Load Logbook = {qrz.GotoLogbook()}");
         }
 
-        private void button16_Click(object sender, EventArgs e)
+        private void btnLogin_Click(object sender, EventArgs e)
         {
-            qrz.Qrz = textBox2.Text;
-            qrz.Password = textBox5.Text;
-            SaveRegKey("username", qrz.Qrz);
-            SaveRegKey("password", qrz.Password);
+            qrz.Qrz = txtUsername.Text;
+            qrz.Password = txtPassword.Text;
 
-            addMonitor($"Login... QRZ=[{qrz.Qrz}] - Password=[{new string('*', qrz.Password.Length)}]");
-            //qrz.LoginAsync();
-            qrz.Login();
+            if (qrz.Qrz != "" && qrz.Password != "")
+            {
+                SaveRegKey("username", qrz.Qrz);
+                SaveRegKey("password", qrz.Password);
 
+                addMonitor($"Login... QRZ=[{qrz.Qrz}] - Password=[{new string('*', qrz.Password.Length)}]");
+
+                string errorMessage = string.Empty;
+                bool logged = qrz.Login(out errorMessage);
+                if (logged)
+                    addMonitor($"Logged in QRZ=[{qrz.Qrz}]");
+                else
+                    addMonitor(errorMessage);
+            } else
+            {
+                addMonitor($"Unable to Login: username and password are required fields!");
+            }
         }
 
-        private void button6_Click(object sender, EventArgs e)
+        private void btnLookup_Click(object sender, EventArgs e)
         {
-            string QRZtoSearch = textBox3.Text;
+            string QRZtoSearch = txtQRZLookup.Text;
 
             SaveRegKey("lookup", QRZtoSearch);
 
-            addMonitor($"ExecQuery {QRZtoSearch}...");
+            addMonitor($"Lookup {QRZtoSearch}...");
             LookupEntry entry = qrz.ExecQuery(QRZtoSearch);
             addMonitor($"Resut = --->");
             addMonitor($"   QRZ       = {entry.QRZ}");
@@ -123,65 +112,93 @@ namespace QRZTestApp
             addMonitor($"------------------------------------");
         }
 
-        private void button6_Click_1(object sender, EventArgs e)
+        private void btnCheckWorked_Click(object sender, EventArgs e)
         {
+            string QRZtoSearch = txtQRZLookup.Text;
+
+            SaveRegKey("lookup", QRZtoSearch);
+
+            addMonitor($"Check Worked {QRZtoSearch}...");
+
+            string ret = qrz.CheckWorkedRaw(QRZtoSearch);
+            if (ret != "")
+                addMonitor(ret);
+            else
+                addMonitor("No result found!");
+
         }
 
-        private void button7_Click(object sender, EventArgs e)
+        private void btnLookupAndCheck_Click(object sender, EventArgs e)
+        {
+            btnLookup.PerformClick();
+            btnCheckWorked.PerformClick();
+            txtQRZLookup.SelectAll();
+            txtQRZLookup.Focus();
+        }
+
+        private void btnQSOCount_Click(object sender, EventArgs e)
         {
             addMonitor($"Get QSOs Count... ");
             addMonitor($"QSOs Count = {qrz.GetQSOsCount()}");
         }
 
-        private void button8_Click(object sender, EventArgs e)
+        private void btnLogbookPages_Click(object sender, EventArgs e)
         {
             addMonitor($"Get Loogbook Pages... ");
             addMonitor($"Loogbook Pages = {qrz.GetLogbookPages()}");
         }
 
-        private void button9_Click(object sender, EventArgs e)
+        private void btnCurrentPage_Click(object sender, EventArgs e)
         {
             addMonitor($"Get Current Loogbook Page... ");
-            addMonitor($"Current Loogbook Page = {qrz.GetCurrentLogbookPage()}");
+            int currentPage = qrz.GetCurrentLogbookPage();
+            addMonitor($"Current Loogbook Page = {currentPage}");
+            if (currentPage > 0)
+                txtLogbookPage.Text = currentPage.ToString();
         }
 
         private void Form1_Load(object sender, EventArgs e)
         {
-            textBox2.Text = GetRegKeyValue("username");
-            textBox5.Text = GetRegKeyValue("password");
-            textBox3.Text = GetRegKeyValue("lookup");
+            txtUsername.Text = GetRegKeyValue("username");
+            txtPassword.Text = GetRegKeyValue("password");
+            txtQRZLookup.Text = GetRegKeyValue("lookup");
+            this.Show();
+
+            btnIsLogged.PerformClick();
         }
 
-        private void button10_Click(object sender, EventArgs e)
+        private void btnGotoPage_Click(object sender, EventArgs e)
         {
             int page = 1;
 
-            if (int.TryParse(textBox4.Text, out int tmp))
+            if (int.TryParse(txtLogbookPage.Text, out int tmp))
                 page = tmp;
 
             addMonitor($"Goto Page {page}... ");
-            addMonitor($"Current Page = {qrz.GotoLoogbookPage(page)}");
+            int currentPage = qrz.GotoLoogbookPage(page);
+            addMonitor($"Current Page = {currentPage}");
+            txtLogbookPage.Text = currentPage.ToString();
         }
 
-        private void button1_Click(object sender, EventArgs e)
+        private void btnGetTableContentRaw_Click(object sender, EventArgs e)
         {
             int page = 1;
 
-            if (int.TryParse(textBox4.Text, out int tmp))
+            if (int.TryParse(txtLogbookPage.Text, out int tmp))
                 page = tmp;
 
-            addMonitor($"Get Table content Raw {page}... ");
+            addMonitor($"Get Table content Raw of page {page}... ");
             addMonitor($"{qrz.GetLogbookPageContentRaw(page)}");
         }
 
-        private void button2_Click(object sender, EventArgs e)
+        private void btnGetTableContentXML_Click(object sender, EventArgs e)
         {
             int page = 1;
 
-            if (int.TryParse(textBox4.Text, out int tmp))
+            if (int.TryParse(txtLogbookPage.Text, out int tmp))
                 page = tmp;
 
-            addMonitor($"Get Table content {page}... ");
+            addMonitor($"Get Table content of page {page}... ");
 
             List<LogbookEntry> lbentries = qrz.GetLogbookPageContent(page);
             if (lbentries != null)
@@ -200,33 +217,33 @@ namespace QRZTestApp
             }
         }
 
-        private void button3_Click(object sender, EventArgs e)
+        private void btnPageDown_Click(object sender, EventArgs e)
         {
             int page = 1;
 
-            if (int.TryParse(textBox4.Text, out int tmp))
+            if (int.TryParse(txtLogbookPage.Text, out int tmp))
                 page = tmp;
 
             if (page > 1)
                 page = page - 1;
 
-            textBox4.Text = page.ToString();
+            txtLogbookPage.Text = page.ToString();
 
-            button10_Click(sender, e);
+            btnGotoPage_Click(sender, e);
         }
 
-        private void button4_Click(object sender, EventArgs e)
+        private void btnPageUp_Click(object sender, EventArgs e)
         {
             int page = 1;
 
-            if (int.TryParse(textBox4.Text, out int tmp))
+            if (int.TryParse(txtLogbookPage.Text, out int tmp))
                 page = tmp;
 
             page++;
 
-            textBox4.Text = page.ToString();
+            txtLogbookPage.Text = page.ToString();
 
-            button10_Click(sender, e);
+            btnGotoPage_Click(sender, e);
         }
 
         private void SaveRegKey(string key, string value)
@@ -250,6 +267,39 @@ namespace QRZTestApp
                 regkey.Close();
             }
             return ret;
+        }
+
+        private void txtQRZLookup_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Return)
+            {
+                btnLookupAndCheck.PerformClick();
+            }
+        }
+
+        private void btnClearMonitor_Click(object sender, EventArgs e)
+        {
+            txtMonitor.Text = string.Empty;
+        }
+
+        private void btnOrderDateAsc_Click(object sender, EventArgs e)
+        {
+            addMonitor($"Set Logbook Order Date Asc... ");
+            int currOrder = qrz.SetLogbookDateOrder(0);
+            if (currOrder == 0)
+                addMonitor($"Logbook Order Date is \"Asc\"");
+            else
+                addMonitor($"Unable to Set Logbook Order Date Asc");
+        }
+
+        private void btnOrderDateDesc_Click(object sender, EventArgs e)
+        {
+            addMonitor($"Set Logbook Order Date Desc... ");
+            int currOrder = qrz.SetLogbookDateOrder(1);
+            if (currOrder == 1)
+                addMonitor($"Logbook Order Date is \"Desc\"");
+            else
+                addMonitor($"Unable to Set Logbook Order Date Desc");
         }
     }
 }

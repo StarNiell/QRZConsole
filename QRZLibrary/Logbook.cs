@@ -19,20 +19,12 @@ namespace QRZLibrary
 
         WebBrowser wb;
 
-        WBActions wbAction;
-        Timer tmrActionState = new Timer();
-
-        public delegate void LoggedInEventHaldler(object sender, EventArgs e);
-        public event LoggedInEventHaldler LoggedIn;
-        public delegate void ErrorEventHaldler(object sender, OnErrorEventArgs e);
-        public event ErrorEventHaldler Error;
-
-        private int PagesLoadedAfterLogin = 0;
         private bool flagDocumentCompleted = false;
 
         private string _qrzUrl = "https://www.qrz.com";
         private string _logbookUrl = "https://logbook.qrz.com";
         private string _lookupUrl = "https://www.qrz.com/lookup";
+        private string _addCallUrl = "https://logbook.qrz.com/logbook/?op=add;addcall=";
         private string _qrz;
         private string _password;
         private string _loginPage = "/login";
@@ -46,20 +38,15 @@ namespace QRZLibrary
         public long PageLoadTimeOut { get => _pageLoadTimeOut; set => _pageLoadTimeOut = value; }
         public int CpuSleep { get => _cpuSleep; set => _cpuSleep = value; }
         public string LookupUrl { get => _lookupUrl; set => _lookupUrl = value; }
+        public string AddCallUrl { get => _addCallUrl; set => _addCallUrl = value; }
 
         public Logbook()
         {
-
             QRZHelper.initWBEdge11();
             
             wb = new WebBrowser();
             wb.ScriptErrorsSuppressed = true;
             wb.DocumentCompleted += Wb_DocumentCompleted;
-
-            //For Async methods
-            tmrActionState.Enabled = false;
-            tmrActionState.Interval = 1000;
-            tmrActionState.Tick += tmrActionState_Tick;
 
         }
 
@@ -68,12 +55,8 @@ namespace QRZLibrary
         private void Wb_DocumentCompleted(object sender, WebBrowserDocumentCompletedEventArgs e)
         {
             flagDocumentCompleted = true;
-
             string log = $"Wb_DocumentCompleted - Url={e.Url}";
             Debug.WriteLine(log);
-
-            ActionStateChanged();
-
         }
 
         private bool NavigateAndWait(string Url)
@@ -135,22 +118,6 @@ namespace QRZLibrary
             return true;
         }
 
-        private void setUID()
-        {
-            Debug.WriteLine($"setUID()");
-            SetElementValue("username", Qrz);
-            ExecuteScript("next");
-            tmrActionState.Enabled = true;
-        }
-
-        private void setPWD()
-        {
-            Debug.WriteLine($"setPWD()");
-            SetElementValue("password", Password);
-            wbAction = WBActions.openQRZ;
-            ExecuteScript("next");
-        }
-
         private string GetElementValue(string id, string attribute = "value")
         {
             HtmlElement el = wb.Document.GetElementById(id);
@@ -179,57 +146,6 @@ namespace QRZLibrary
             wb.Navigate(Url);
         }
 
-        private void tmrActionState_Tick(object seder, EventArgs e)
-        {
-
-            int step = (int)GetJSValue("step");
-            if (step == 2)
-            {
-                Debug.WriteLine($"tmrActionState_Tick()");
-                tmrActionState.Enabled = false;
-                wbAction = WBActions.loginPWD;
-                ActionStateChanged();
-            }
-        }
-
-        private void ActionStateChanged()
-        {
-            Debug.WriteLine($"wbAction: {wbAction.ToString()} - Title {wb.Document.Title}");
-            switch (wbAction)
-            {
-                case WBActions.start:
-                    wbAction = WBActions.loginUID;
-                    setUID();
-                    break;
-                case WBActions.loginPWD:
-                    setPWD();
-                    break;
-                case WBActions.openQRZ:
-                    PagesLoadedAfterLogin++;
-                    if (wb.Document.Title == "Callsign Database - QRZ.com")
-                    {
-                        PagesLoadedAfterLogin = 0;
-                        wbAction = WBActions.noAction;
-                        if (LoggedIn != null)
-                            LoggedIn(this, new EventArgs());
-                    }
-                    else
-                    {
-                        if (PagesLoadedAfterLogin >= 1)
-                        {
-                            PagesLoadedAfterLogin = 0;
-                            wbAction = WBActions.noAction;
-                            if (Error != null)
-                            {
-                                OnErrorEventArgs errevarg = new OnErrorEventArgs();
-                                errevarg.ex = new Exception("Unable to Login QRZ.COM. Check Username and password");
-                                Error(this, errevarg);
-                            }
-                        }
-                    }
-                    break;
-            }
-        }
 
         #endregion
 
@@ -271,15 +187,15 @@ namespace QRZLibrary
             return ret;
         }
 
-        public bool Login()
+        public bool Login(out string errorMessage)
         {
-            return Login(Qrz, Password);
+            return Login(Qrz, Password, out errorMessage);
         }
 
-        public bool Login(string qrz, string password)
+        public bool Login(string qrz, string password, out string errorMessage)
         {
             bool ret = false;
-
+            errorMessage = string.Empty;
             bool stepDone = false;
             bool waitDone = false;
             Stopwatch stopwatch = null;
@@ -301,8 +217,24 @@ namespace QRZLibrary
 
                     while (!waitDone)
                     {
-                        stepDone = waitDone = (wb.Document.GetElementById("trustInfo") != null);
-                        waitDone = (wb.Document.GetElementById("usernameError") != null);
+                        HtmlElement fullname = wb.Document.GetElementById("fullname");
+                        if (fullname != null)
+                        {
+                            stepDone = waitDone = ((fullname.InnerText??string.Empty) != "");
+                        }
+                        if (!waitDone)
+                        {
+                            HtmlElement usernameError = wb.Document.GetElementById("usernameError");
+                            if (usernameError != null)
+                            {
+                                if ((!usernameError.Style.Contains("display: none")))
+                                {
+                                    errorMessage = "Invalid username!";
+                                    waitDone = true;
+                                }
+
+                            }
+                        }
 
                         Application.DoEvents();
                         Thread.Sleep(CpuSleep);
@@ -331,7 +263,20 @@ namespace QRZLibrary
                         if (stopwatch.ElapsedMilliseconds > 1000)
                         {
                             stepDone = waitDone = (wb.Document.Title == "Callsign Database - QRZ.com");
-                            waitDone = (wb.Document.Title == "Login - QRZ.com");
+                            if (wb.Document.Title == "Login - QRZ.com")
+                            {
+
+                                HtmlElement alertContainer = QRZHelper.GetElementByTagAndClassName(wb.Document.Body, "div", "alert-container");
+                                if (alertContainer != null)
+                                {
+                                    HtmlElement alertWarning = QRZHelper.GetElementByTagAndClassName(wb.Document.Body, "div", "alert alert-warning");
+                                    if (alertWarning.InnerText == "Authentication error: \"Invalid username or password!\"")
+                                    {
+                                        errorMessage = "Invalid username or password!";
+                                        waitDone = true;
+                                    }
+                                }
+                            }
                         }
 
                         Application.DoEvents();
@@ -350,47 +295,6 @@ namespace QRZLibrary
                 }
             }
             return ret;
-        }
-
-        public void LoginAsync()
-        {
-            LoginAsync(Qrz, Password);
-        }
-
-        public void LoginAsync(string qrz, string password)
-        {
-            Qrz = qrz;
-
-            Password = password;
-
-            if (NavigateAndWait(QrzUrl + _loginPage))
-            {
-                if (wb.Document.Title == "Login - QRZ.com")
-                {
-                    wbAction = WBActions.start;
-                    ActionStateChanged();
-                }
-                else
-                {
-                    if (IsLogged())
-                    {
-                        wbAction = WBActions.noAction;
-                        if (LoggedIn != null)
-                            LoggedIn(this, new EventArgs());
-                    }
-                    else
-                    {
-                        if (Error != null)
-                        {
-                            OnErrorEventArgs e = new OnErrorEventArgs();
-                            e.ex = new Exception($"Unable to Login QRZ.com. Current page title is: [{wb.Document.Title ?? string.Empty}]");
-                            Error(this, e);
-                        }
-                    }
-
-                }
-            }
-
         }
 
         public bool LogOut()
@@ -434,7 +338,7 @@ namespace QRZLibrary
         public bool GotoLogbook(bool ForceReload = false)
         {
             bool ret = false;
-            ret = (!ForceReload && wb.Document != null && wb.Document.Title == "Logbook by QRZ.COM");
+            ret = (!ForceReload && wb.Document != null && wb.Document.Title == "Logbook by QRZ.COM") && (wb.Document.GetElementById("button-addon4") != null);
             if (!ret)
             {
                 if (NavigateAndWait(LogbookUrl))
@@ -451,6 +355,17 @@ namespace QRZLibrary
             if (!ret) {
                 if (NavigateAndWait(LookupUrl))
                     ret = wb.Document.Title.Equals("QRZ Callsign Database Search by QRZ Ham Radio");
+            }
+            return ret;
+        }
+
+        private bool StartAddCall(string QRZToCall)
+        {
+            bool ret = false;
+            if (NavigateAndWait($"{AddCallUrl}{QRZToCall}"))
+            {
+                ret = wb.Document.Title.Equals("Logbook by QRZ.COM")
+                    && (wb.Document.GetElementById("rst_sent") != null);
             }
             return ret;
         }
@@ -527,6 +442,34 @@ namespace QRZLibrary
             return ret;
         }
 
+        public string CheckWorkedRaw(string QRZsearch)
+        {
+            string ret = string.Empty;
+            if (StartAddCall(QRZsearch))
+            {
+                HtmlElement lblist = wb.Document.GetElementById("lblist");
+                if (lblist != null )
+                {
+                    HtmlElement seenBeforeTable = QRZHelper.GetElementByTagAndClassName(lblist, "table", "styledTable seenBeforeTable");
+                    if (seenBeforeTable != null)
+                    {
+                        HtmlElementCollection rows = seenBeforeTable.GetElementsByTagName("TR");
+
+                        foreach (HtmlElement row in rows)
+                        {
+                            HtmlElementCollection cols = row.GetElementsByTagName("TD");
+                            foreach (HtmlElement cell in cols)
+                            {
+                                ret += cell.InnerText + "\t";
+                            }
+                            ret += "\r\n";
+                        }
+                    }
+                }
+            }
+            return ret;
+        }
+
         public int GetQSOsCount(bool ForceReload = false)
         {
             int ret = -1;
@@ -578,13 +521,15 @@ namespace QRZLibrary
         public int GetCurrentLogbookPage()
         {
             int ret = -1;
-
-            if (wb.Document != null && wb.Document.Title == "Logbook by QRZ.COM")
+            if (GotoLogbook())
             {
-                HtmlElement el = wb.Document.GetElementById("ipage");
-                if (el != null)
-                    if (int.TryParse(el.GetAttribute("value"), out int tmp))
-                        ret = tmp;
+                if (wb.Document != null && wb.Document.Title == "Logbook by QRZ.COM" && (wb.Document.GetElementById("button-addon4") != null))
+                {
+                    HtmlElement el = wb.Document.GetElementById("ipage");
+                    if (el != null)
+                        if (int.TryParse(el.GetAttribute("value"), out int tmp))
+                            ret = tmp;
+                }
             }
             return ret;
         }
@@ -594,7 +539,7 @@ namespace QRZLibrary
         {
             int ret = -1;
 
-            if (wb.Document != null && wb.Document.Title == "Logbook by QRZ.COM")
+            if (GotoLogbook())
             {
                 HtmlElement el = wb.Document.GetElementById("ipage");
                 if (el != null)
@@ -625,7 +570,6 @@ namespace QRZLibrary
 
                     }
                     ret = GetCurrentLogbookPage();
-                    ;
                 }
                    
             }
@@ -722,36 +666,71 @@ namespace QRZLibrary
             return ret;
         }
 
+        public int SetLogbookDateOrder(int dateOrder)
+        {
+            int ret = -1;
+            string contains = string.Empty;
+            string mustContains = string.Empty;
+
+
+            if (GotoLogbook())
+            {
+                HtmlElement th_date = wb.Document.GetElementById("th_date");
+                if (th_date != null)
+                {
+                    if (dateOrder == 0)
+                    {
+                        contains = "sortAsc";
+                        mustContains = "sortDesc";
+                    }
+                    else if (dateOrder == 1)
+                    {
+                        contains = "sortDesc";
+                        mustContains = "sortAsc";
+                    }
+                    else
+                        return -1;
+
+                    if (th_date.GetAttribute("className").Contains(contains))
+                    {
+                        bool orderSetOk = false;
+                        Stopwatch stopwatch = new Stopwatch();
+                        stopwatch.Start();
+
+                        th_date.InvokeMember("click");
+
+                        while (!orderSetOk)
+                        {
+                            if (stopwatch.ElapsedMilliseconds > 1000)
+                            {
+                                th_date = wb.Document.GetElementById("th_date");
+                                if (th_date.GetAttribute("className").Contains(mustContains))
+                                {
+                                    ret = dateOrder;
+                                    orderSetOk = true;
+                                }
+
+                            }
+
+                            Application.DoEvents();
+                            Thread.Sleep(CpuSleep);
+                            if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
+                                return -1;
+
+                        }
+                    }
+                    else if (th_date.GetAttribute("className").Contains(mustContains))
+                    {
+                        ret = dateOrder;
+                    }
+                }
+            }
+
+            return ret;
+        }
+
         #endregion
 
-    }
-
-    public enum WBActions
-    {
-        noAction = 0,
-        start,
-        logout,
-        loginUID,
-        loginPWD,
-        openQRZ
-    }
-
-    public class OnErrorEventArgs : EventArgs
-    {
-
-        private Exception m_ex;
-
-        public Exception ex
-        {
-            set
-            {
-                m_ex = value;
-            }
-            get
-            {
-                return m_ex;
-            }
-        }
     }
 
 }
