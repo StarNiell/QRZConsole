@@ -588,11 +588,23 @@ namespace QRZLibrary
                 foreach (HtmlElement row in rows)
                 {
                     HtmlElementCollection cols = row.GetElementsByTagName("TD");
+                    int colCount = 0;
+                    bool validRow = false;
                     foreach (HtmlElement cell in cols)
                     {
-                        ret += cell.InnerText + "\t";
+                        colCount++;
+                        if (colCount == 1)
+                        {
+                            if (cell.InnerText != null)
+                            {
+                                validRow = int.TryParse(cell.InnerText.Trim(), out int tmp);
+                            }
+                        }
+                        if (validRow)
+                            ret += cell.InnerText + "\t";
                     }
-                    ret += "\r\n";
+                    if (validRow)
+                        ret += "\r\n";
                 }
 
             }
@@ -657,7 +669,6 @@ namespace QRZLibrary
                                 lbrow.Comments = cell.InnerText;
                                 break;
                         }
-
                     }
                     if (lbrow.position > 0)
                         ret.Add(lbrow);

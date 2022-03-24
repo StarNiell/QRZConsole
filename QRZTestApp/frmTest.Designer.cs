@@ -33,6 +33,8 @@ namespace QRZTestApp
             this.tabPage1 = new System.Windows.Forms.TabPage();
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
             this.groupBox3 = new System.Windows.Forms.GroupBox();
+            this.btnOrderDateDesc = new System.Windows.Forms.Button();
+            this.btnOrderDateAsc = new System.Windows.Forms.Button();
             this.btnPageDown = new System.Windows.Forms.Button();
             this.btnCurrentPage = new System.Windows.Forms.Button();
             this.btnPageUp = new System.Windows.Forms.Button();
@@ -44,9 +46,12 @@ namespace QRZTestApp
             this.btnQSOCount = new System.Windows.Forms.Button();
             this.btnGotoLookbook = new System.Windows.Forms.Button();
             this.groupBox2 = new System.Windows.Forms.GroupBox();
+            this.btnLookupAndCheck = new System.Windows.Forms.Button();
+            this.btnCheckWorked = new System.Windows.Forms.Button();
             this.txtQRZLookup = new System.Windows.Forms.TextBox();
             this.btnLookup = new System.Windows.Forms.Button();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
+            this.btnClearMonitor = new System.Windows.Forms.Button();
             this.label2 = new System.Windows.Forms.Label();
             this.txtPassword = new System.Windows.Forms.TextBox();
             this.label1 = new System.Windows.Forms.Label();
@@ -56,11 +61,9 @@ namespace QRZTestApp
             this.btnLogOut = new System.Windows.Forms.Button();
             this.btnIsLogged = new System.Windows.Forms.Button();
             this.txtMonitor = new System.Windows.Forms.TextBox();
-            this.btnCheckWorked = new System.Windows.Forms.Button();
-            this.btnLookupAndCheck = new System.Windows.Forms.Button();
-            this.btnClearMonitor = new System.Windows.Forms.Button();
-            this.btnOrderDateAsc = new System.Windows.Forms.Button();
-            this.btnOrderDateDesc = new System.Windows.Forms.Button();
+            this.txtCommand = new System.Windows.Forms.TextBox();
+            this.btnSwitchView = new System.Windows.Forms.Button();
+            this.btnCommandList = new System.Windows.Forms.Button();
             this.tabControl1.SuspendLayout();
             this.tabPage1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
@@ -104,6 +107,8 @@ namespace QRZTestApp
             // 
             // splitContainer1.Panel1
             // 
+            this.splitContainer1.Panel1.Controls.Add(this.btnSwitchView);
+            this.splitContainer1.Panel1.Controls.Add(this.txtCommand);
             this.splitContainer1.Panel1.Controls.Add(this.groupBox3);
             this.splitContainer1.Panel1.Controls.Add(this.groupBox2);
             this.splitContainer1.Panel1.Controls.Add(this.groupBox1);
@@ -112,7 +117,7 @@ namespace QRZTestApp
             // 
             this.splitContainer1.Panel2.Controls.Add(this.txtMonitor);
             this.splitContainer1.Size = new System.Drawing.Size(926, 665);
-            this.splitContainer1.SplitterDistance = 204;
+            this.splitContainer1.SplitterDistance = 225;
             this.splitContainer1.TabIndex = 1;
             // 
             // groupBox3
@@ -135,6 +140,26 @@ namespace QRZTestApp
             this.groupBox3.TabIndex = 40;
             this.groupBox3.TabStop = false;
             this.groupBox3.Text = "Logbook";
+            // 
+            // btnOrderDateDesc
+            // 
+            this.btnOrderDateDesc.Location = new System.Drawing.Point(116, 117);
+            this.btnOrderDateDesc.Name = "btnOrderDateDesc";
+            this.btnOrderDateDesc.Size = new System.Drawing.Size(95, 31);
+            this.btnOrderDateDesc.TabIndex = 20;
+            this.btnOrderDateDesc.Text = "Date Desc";
+            this.btnOrderDateDesc.UseVisualStyleBackColor = true;
+            this.btnOrderDateDesc.Click += new System.EventHandler(this.btnOrderDateDesc_Click);
+            // 
+            // btnOrderDateAsc
+            // 
+            this.btnOrderDateAsc.Location = new System.Drawing.Point(19, 117);
+            this.btnOrderDateAsc.Name = "btnOrderDateAsc";
+            this.btnOrderDateAsc.Size = new System.Drawing.Size(91, 31);
+            this.btnOrderDateAsc.TabIndex = 19;
+            this.btnOrderDateAsc.Text = "Date Asc";
+            this.btnOrderDateAsc.UseVisualStyleBackColor = true;
+            this.btnOrderDateAsc.Click += new System.EventHandler(this.btnOrderDateAsc_Click);
             // 
             // btnPageDown
             // 
@@ -248,6 +273,26 @@ namespace QRZTestApp
             this.groupBox2.TabStop = false;
             this.groupBox2.Text = "Loookup";
             // 
+            // btnLookupAndCheck
+            // 
+            this.btnLookupAndCheck.Location = new System.Drawing.Point(10, 119);
+            this.btnLookupAndCheck.Name = "btnLookupAndCheck";
+            this.btnLookupAndCheck.Size = new System.Drawing.Size(94, 54);
+            this.btnLookupAndCheck.TabIndex = 10;
+            this.btnLookupAndCheck.Text = "Lookup and Check Worked";
+            this.btnLookupAndCheck.UseVisualStyleBackColor = true;
+            this.btnLookupAndCheck.Click += new System.EventHandler(this.btnLookupAndCheck_Click);
+            // 
+            // btnCheckWorked
+            // 
+            this.btnCheckWorked.Location = new System.Drawing.Point(10, 90);
+            this.btnCheckWorked.Name = "btnCheckWorked";
+            this.btnCheckWorked.Size = new System.Drawing.Size(94, 27);
+            this.btnCheckWorked.TabIndex = 9;
+            this.btnCheckWorked.Text = "Check Worked";
+            this.btnCheckWorked.UseVisualStyleBackColor = true;
+            this.btnCheckWorked.Click += new System.EventHandler(this.btnCheckWorked_Click);
+            // 
             // txtQRZLookup
             // 
             this.txtQRZLookup.Location = new System.Drawing.Point(10, 37);
@@ -268,6 +313,7 @@ namespace QRZTestApp
             // 
             // groupBox1
             // 
+            this.groupBox1.Controls.Add(this.btnCommandList);
             this.groupBox1.Controls.Add(this.btnClearMonitor);
             this.groupBox1.Controls.Add(this.label2);
             this.groupBox1.Controls.Add(this.txtPassword);
@@ -277,12 +323,22 @@ namespace QRZTestApp
             this.groupBox1.Controls.Add(this.btnQRZHome);
             this.groupBox1.Controls.Add(this.btnLogOut);
             this.groupBox1.Controls.Add(this.btnIsLogged);
-            this.groupBox1.Location = new System.Drawing.Point(15, 11);
+            this.groupBox1.Location = new System.Drawing.Point(16, 12);
             this.groupBox1.Name = "groupBox1";
             this.groupBox1.Size = new System.Drawing.Size(259, 183);
             this.groupBox1.TabIndex = 36;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "QRZ.COM Startup";
+            // 
+            // btnClearMonitor
+            // 
+            this.btnClearMonitor.Location = new System.Drawing.Point(17, 147);
+            this.btnClearMonitor.Name = "btnClearMonitor";
+            this.btnClearMonitor.Size = new System.Drawing.Size(94, 26);
+            this.btnClearMonitor.TabIndex = 23;
+            this.btnClearMonitor.Text = "Clear Monitor";
+            this.btnClearMonitor.UseVisualStyleBackColor = true;
+            this.btnClearMonitor.Click += new System.EventHandler(this.btnClearMonitor_Click);
             // 
             // label2
             // 
@@ -367,59 +423,42 @@ namespace QRZTestApp
             this.txtMonitor.Multiline = true;
             this.txtMonitor.Name = "txtMonitor";
             this.txtMonitor.ScrollBars = System.Windows.Forms.ScrollBars.Both;
-            this.txtMonitor.Size = new System.Drawing.Size(922, 453);
+            this.txtMonitor.Size = new System.Drawing.Size(922, 432);
             this.txtMonitor.TabIndex = 24;
             this.txtMonitor.WordWrap = false;
             // 
-            // btnCheckWorked
+            // txtCommand
             // 
-            this.btnCheckWorked.Location = new System.Drawing.Point(10, 90);
-            this.btnCheckWorked.Name = "btnCheckWorked";
-            this.btnCheckWorked.Size = new System.Drawing.Size(94, 27);
-            this.btnCheckWorked.TabIndex = 9;
-            this.btnCheckWorked.Text = "Check Worked";
-            this.btnCheckWorked.UseVisualStyleBackColor = true;
-            this.btnCheckWorked.Click += new System.EventHandler(this.btnCheckWorked_Click);
+            this.txtCommand.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(64)))), ((int)(((byte)(64)))), ((int)(((byte)(64)))));
+            this.txtCommand.Dock = System.Windows.Forms.DockStyle.Bottom;
+            this.txtCommand.Font = new System.Drawing.Font("Consolas", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.txtCommand.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(255)))), ((int)(((byte)(255)))), ((int)(((byte)(192)))));
+            this.txtCommand.Location = new System.Drawing.Point(0, 201);
+            this.txtCommand.Name = "txtCommand";
+            this.txtCommand.Size = new System.Drawing.Size(922, 20);
+            this.txtCommand.TabIndex = 41;
+            this.txtCommand.KeyDown += new System.Windows.Forms.KeyEventHandler(this.txtCommand_KeyDown);
             // 
-            // btnLookupAndCheck
+            // btnSwitchView
             // 
-            this.btnLookupAndCheck.Location = new System.Drawing.Point(10, 119);
-            this.btnLookupAndCheck.Name = "btnLookupAndCheck";
-            this.btnLookupAndCheck.Size = new System.Drawing.Size(94, 54);
-            this.btnLookupAndCheck.TabIndex = 10;
-            this.btnLookupAndCheck.Text = "Lookup and Check Worked";
-            this.btnLookupAndCheck.UseVisualStyleBackColor = true;
-            this.btnLookupAndCheck.Click += new System.EventHandler(this.btnLookupAndCheck_Click);
+            this.btnSwitchView.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
+            this.btnSwitchView.Location = new System.Drawing.Point(902, 199);
+            this.btnSwitchView.Name = "btnSwitchView";
+            this.btnSwitchView.Size = new System.Drawing.Size(21, 21);
+            this.btnSwitchView.TabIndex = 42;
+            this.btnSwitchView.Text = "-";
+            this.btnSwitchView.UseVisualStyleBackColor = true;
+            this.btnSwitchView.Click += new System.EventHandler(this.btnSwitchView_Click);
             // 
-            // btnClearMonitor
+            // btnCommandList
             // 
-            this.btnClearMonitor.Location = new System.Drawing.Point(17, 147);
-            this.btnClearMonitor.Name = "btnClearMonitor";
-            this.btnClearMonitor.Size = new System.Drawing.Size(94, 26);
-            this.btnClearMonitor.TabIndex = 23;
-            this.btnClearMonitor.Text = "Clear Monitor";
-            this.btnClearMonitor.UseVisualStyleBackColor = true;
-            this.btnClearMonitor.Click += new System.EventHandler(this.btnClearMonitor_Click);
-            // 
-            // btnOrderDateAsc
-            // 
-            this.btnOrderDateAsc.Location = new System.Drawing.Point(19, 117);
-            this.btnOrderDateAsc.Name = "btnOrderDateAsc";
-            this.btnOrderDateAsc.Size = new System.Drawing.Size(91, 31);
-            this.btnOrderDateAsc.TabIndex = 19;
-            this.btnOrderDateAsc.Text = "Date Asc";
-            this.btnOrderDateAsc.UseVisualStyleBackColor = true;
-            this.btnOrderDateAsc.Click += new System.EventHandler(this.btnOrderDateAsc_Click);
-            // 
-            // btnOrderDateDesc
-            // 
-            this.btnOrderDateDesc.Location = new System.Drawing.Point(116, 117);
-            this.btnOrderDateDesc.Name = "btnOrderDateDesc";
-            this.btnOrderDateDesc.Size = new System.Drawing.Size(95, 31);
-            this.btnOrderDateDesc.TabIndex = 20;
-            this.btnOrderDateDesc.Text = "Date Desc";
-            this.btnOrderDateDesc.UseVisualStyleBackColor = true;
-            this.btnOrderDateDesc.Click += new System.EventHandler(this.btnOrderDateDesc_Click);
+            this.btnCommandList.Location = new System.Drawing.Point(145, 146);
+            this.btnCommandList.Name = "btnCommandList";
+            this.btnCommandList.Size = new System.Drawing.Size(94, 26);
+            this.btnCommandList.TabIndex = 41;
+            this.btnCommandList.Text = "Command List";
+            this.btnCommandList.UseVisualStyleBackColor = true;
+            this.btnCommandList.Click += new System.EventHandler(this.btnCommandList_Click);
             // 
             // frmTest
             // 
@@ -427,12 +466,15 @@ namespace QRZTestApp
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(940, 697);
             this.Controls.Add(this.tabControl1);
+            this.KeyPreview = true;
             this.Name = "frmTest";
             this.Text = "QRZ Library Test App";
             this.Load += new System.EventHandler(this.Form1_Load);
+            this.KeyDown += new System.Windows.Forms.KeyEventHandler(this.frmTest_KeyDown);
             this.tabControl1.ResumeLayout(false);
             this.tabPage1.ResumeLayout(false);
             this.splitContainer1.Panel1.ResumeLayout(false);
+            this.splitContainer1.Panel1.PerformLayout();
             this.splitContainer1.Panel2.ResumeLayout(false);
             this.splitContainer1.Panel2.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).EndInit();
@@ -481,6 +523,9 @@ namespace QRZTestApp
         private System.Windows.Forms.Button btnClearMonitor;
         private System.Windows.Forms.Button btnOrderDateDesc;
         private System.Windows.Forms.Button btnOrderDateAsc;
+        private System.Windows.Forms.TextBox txtCommand;
+        private System.Windows.Forms.Button btnSwitchView;
+        private System.Windows.Forms.Button btnCommandList;
     }
 }
 
