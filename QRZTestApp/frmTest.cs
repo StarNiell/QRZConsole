@@ -357,16 +357,16 @@ namespace QRZTestApp
             }
         }
 
-        private void GetTableContenteText(int page)
+        private void GetTableContenteText(int startpage, int endpage = -1)
         {
-            if (page < 1)
-                int.TryParse(txtLogbookPage.Text, out page);
+            if (startpage < 1)
+                int.TryParse(txtLogbookPage.Text, out startpage);
 
-            addMonitor($"Get Table content text of page {page}... ");
+            addMonitor($"Get Table content text of page {startpage}... ");
 
             string pageText = "";
 
-            List<LogbookEntry> lbentries = qrz.GetLogbookPageContent(page);
+            List<LogbookEntry> lbentries = qrz.GetLogbookPageContent(startpage);
             if (lbentries != null)
             {
                 if (lbentries.Count > 0)
