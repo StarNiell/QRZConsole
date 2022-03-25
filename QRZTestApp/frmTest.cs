@@ -21,6 +21,8 @@ namespace QRZTestApp
 
         private delegate void SafeCallDelegate(string text);
 
+        private string lastQRZ = string.Empty;
+
         public frmTest()
         {
             InitializeComponent();
@@ -52,7 +54,16 @@ namespace QRZTestApp
         private void IsLogged()
         {
             addMonitor($"Start IsLogged request...");
-            addMonitor($"IsLogged = {qrz.IsLogged().ToString()}");
+            bool il = qrz.IsLogged();
+            addMonitor($"IsLogged = {il.ToString()}");
+            SaveRegKey("IsLoggedIn",  il?"1":"0");
+        }
+
+        private void IsLoggedInLastStatus()
+        {
+            string lastStatus = GetRegKeyValue("IsLoggedIn");
+            addMonitor($"IsLogged (last status) = {(lastStatus=="1").ToString()}");
+
         }
 
         private void btnLogOut_Click(object sender, EventArgs e)
@@ -63,7 +74,9 @@ namespace QRZTestApp
         private void LogOut()
         {
             addMonitor($"Start Log Out...");
-            addMonitor($"Logout = {qrz.LogOut().ToString()}");
+            bool lo = qrz.LogOut();
+            addMonitor($"Logout = {lo.ToString()}");
+            SaveRegKey("IsLoggedIn", "0");
         }
 
         private void btnQRZHome_Click(object sender, EventArgs e)
@@ -113,7 +126,10 @@ namespace QRZTestApp
                 string errorMessage = string.Empty;
                 bool logged = qrz.Login(out errorMessage);
                 if (logged)
+                {
+                    SaveRegKey("IsLoggedIn", "1");
                     addMonitor($"Logged in QRZ=[{qrz.Qrz}]");
+                }
                 else
                     addMonitor(errorMessage);
             }
@@ -130,27 +146,39 @@ namespace QRZTestApp
             QRZtoSearch = QRZtoSearch.ToUpper();
 
             Lookup(QRZtoSearch);
+            lastQRZ = QRZtoSearch;
         }
 
-        private void Lookup(string QRZtoSearch)
+        private void Lookup(string QRZtoSearch = "")
         {
-            QRZtoSearch = QRZtoSearch.ToUpper();
+            if (QRZtoSearch != "")
+            {
+                QRZtoSearch = QRZtoSearch.ToUpper();
+                lastQRZ = QRZtoSearch;
+            }
+            else
+                QRZtoSearch = lastQRZ;
 
-            SaveRegKey("lookup", QRZtoSearch);
+            if (QRZtoSearch != "")
+            {
+                SaveRegKey("lookup", QRZtoSearch);
 
-            addMonitor("");
-            addMonitor($"Lookup {QRZtoSearch}...");
-            LookupEntry entry = qrz.ExecQuery(QRZtoSearch);
-            addMonitor($"Resut = --->");
-            addMonitor($"   QRZ       = {entry.QRZ}");
-            addMonitor($"   DXCC      = {entry.DXCC}");
-            addMonitor($"   Country   = {entry.Country}");
-            addMonitor($"   Name      = {entry.Name}");
-            addMonitor($"   Address 1 = {entry.Address1}");
-            addMonitor($"   Address 2 = {entry.Address2}");
-            addMonitor($"   Address 3 = {entry.Address3}");
-            addMonitor($"   Email     = {entry.Email}");
-            addMonitor($"------------------------------------");
+                addMonitor("");
+                addMonitor($"Lookup {QRZtoSearch}...");
+                LookupEntry entry = qrz.ExecQuery(QRZtoSearch);
+                addMonitor($"Resut = --->");
+                addMonitor($"   QRZ       = {entry.QRZ}");
+                addMonitor($"   DXCC      = {entry.DXCC}");
+                addMonitor($"   Country   = {entry.Country}");
+                addMonitor($"   Name      = {entry.Name}");
+                addMonitor($"   Address 1 = {entry.Address1}");
+                addMonitor($"   Address 2 = {entry.Address2}");
+                addMonitor($"   Address 3 = {entry.Address3}");
+                addMonitor($"   Email     = {entry.Email}");
+                addMonitor($"------------------------------------");
+            }
+            else
+                addMonitor($"No QRZ to search");
         }
 
         private void btnCheckWorked_Click(object sender, EventArgs e)
@@ -163,20 +191,31 @@ namespace QRZTestApp
 
         }
 
-        private void GetWorked(string QRZtoSearch)
+        private void GetWorked(string QRZtoSearch = "")
         {
-            QRZtoSearch = QRZtoSearch.ToUpper();
-
-            SaveRegKey("lookup", QRZtoSearch);
-
-            addMonitor("");
-            addMonitor($"Check Worked {QRZtoSearch}...");
-
-            string ret = qrz.CheckWorkedRaw(QRZtoSearch);
-            if (ret != "")
-                addMonitor(ret);
+            if (QRZtoSearch != "")
+            {
+                QRZtoSearch = QRZtoSearch.ToUpper();
+                lastQRZ = QRZtoSearch;
+            }
             else
-                addMonitor("No result found!");
+                QRZtoSearch = lastQRZ;
+
+            if (QRZtoSearch != "")
+            {
+                SaveRegKey("lookup", QRZtoSearch);
+
+                addMonitor("");
+                addMonitor($"Check Worked {QRZtoSearch}...");
+
+                string ret = qrz.CheckWorkedRaw(QRZtoSearch);
+                if (ret != "")
+                    addMonitor(ret);
+                else
+                    addMonitor("No result found!");
+            }
+            else
+                addMonitor("No QRZ to check");
         }
 
         private void btnLookupAndCheck_Click(object sender, EventArgs e)
@@ -230,9 +269,19 @@ namespace QRZTestApp
             txtQRZLookup.Text = GetRegKeyValue("lookup");
             this.Show();
 
-            btnIsLogged.PerformClick();
+            chkIsLogged.Checked = (GetRegKeyValue("CheckIsLoggedIn") == "1");
 
-            txtCommand.Text = "insert command here";
+            if (chkIsLogged.Checked)
+                IsLogged();
+            else
+                IsLoggedInLastStatus();
+
+            chkShowHeader.Checked = (GetRegKeyValue("ShowHeader") == "1");
+
+            if (!chkShowHeader.Checked)
+                SwitchView();
+
+            txtCommand.Text = "insert command here (digit cm and press ENTER for Command List)";
             txtCommand.SelectAll();
             txtCommand.Focus();
         }
@@ -289,7 +338,7 @@ namespace QRZTestApp
             if (page < 1)
                 int.TryParse(txtLogbookPage.Text, out page);
 
-            addMonitor($"Get Table content of page {page}... ");
+            addMonitor($"Get Table content XML of page {page}... ");
 
             List<LogbookEntry> lbentries = qrz.GetLogbookPageContent(page);
             if (lbentries != null)
@@ -302,6 +351,87 @@ namespace QRZTestApp
                     addMonitor(xml);
                     addMonitor($"************************************************************************************************");
                     addMonitor("");
+                }
+                else
+                    addMonitor("Found 0 entries");
+            }
+        }
+
+        private void GetTableContenteText(int page)
+        {
+            if (page < 1)
+                int.TryParse(txtLogbookPage.Text, out page);
+
+            addMonitor($"Get Table content text of page {page}... ");
+
+            string pageText = "";
+
+            List<LogbookEntry> lbentries = qrz.GetLogbookPageContent(page);
+            if (lbentries != null)
+            {
+                if (lbentries.Count > 0)
+                {
+                    string headerLine = new string('-', 211);
+                    addMonitor("");
+                    addMonitor(headerLine);
+
+                    string headerText = "";
+                    headerText += "| ";
+                    headerText += GetFixedString("Num.", 5);
+                    headerText += " | ";
+                    headerText += GetFixedString("Date - Time", 16);
+                    headerText += " | ";
+                    headerText += GetFixedString("Call", 13);
+                    headerText += " | ";
+                    headerText += GetFixedString("Band", 5);
+                    headerText += " | ";
+                    headerText += GetFixedString("Freq.", 7);
+                    headerText += " | ";
+                    headerText += GetFixedString("Mode", 6);
+                    headerText += " | ";
+                    headerText += "QSL";
+                    headerText += " | ";
+                    headerText += GetFixedString("GridLoc", 8);
+                    headerText += " | ";
+                    headerText += GetFixedString("Country", 20);
+                    headerText += " | ";
+                    headerText += GetFixedString("Operator Name", 50);
+                    headerText += " | ";
+                    headerText += GetFixedString("Comments", 50);
+                    headerText += " |";
+                    addMonitor(headerText);
+                    addMonitor(headerLine);
+
+                    foreach (LogbookEntry entry in lbentries)
+                    {
+                        string rowText = "";
+                        rowText += "| ";
+                        rowText += GetFixedString(entry.position.ToString().PadLeft(5), 5);
+                        rowText += " | ";
+                        rowText += GetFixedString(entry.QSODateTime.ToString("yyyy-MM-dd HH:mm"), 16);
+                        rowText += " | ";
+                        rowText += GetFixedString(entry.Call, 13);
+                        rowText += " | ";
+                        rowText += GetFixedString(entry.Band, 5);
+                        rowText += " | ";
+                        rowText += GetFixedString(entry.Frequency, 7);
+                        rowText += " | ";
+                        rowText += GetFixedString(entry.Mode, 6);
+                        rowText += " | ";
+                        rowText += entry.Confirmed ? " * " : "   ";
+                        rowText += " | ";
+                        rowText += GetFixedString(entry.GridLocator, 8);
+                        rowText += " | ";
+                        rowText += GetFixedString(entry.Country, 20);
+                        rowText += " | ";
+                        rowText += GetFixedString(entry.OperatorName, 50);
+                        rowText += " | ";
+                        rowText += GetFixedString(entry.Comments, 50);
+                        rowText += " |";
+                        addMonitor(rowText);
+                    }
+                    addMonitor(headerLine);
+
                 }
                 else
                     addMonitor("Found 0 entries");
@@ -491,6 +621,10 @@ namespace QRZTestApp
                         Lookup(prm1);
                         GetWorked(prm1);
                         break;
+                    case "wl":
+                        GetWorked(prm1);
+                        Lookup(prm1);
+                        break;
                     case "hm":
                         QRZHome();
                         break;
@@ -521,6 +655,9 @@ namespace QRZTestApp
                     case "dd":
                         OrderDateDesc();
                         break;
+                    case "tt":
+                        GetTableContenteText(iprm1);
+                        break;
                     case "tr":
                         GetTableContenteRaw(iprm1);
                         break;
@@ -533,11 +670,41 @@ namespace QRZTestApp
                     case "sw":
                         SwitchView();
                         break;
+                    case "sc":
+                        SwitchCheckIsLoggedAtStartup();
+                        break;
+                    case "fs":
+                        SwitchFullScreen();
+                        break;
+                    case "qi":
+                        this.Close();
+                        break;
                     default:
                         addMonitor($"invalid comamnd: {command}");
                         break;
                 }
             }
+        }
+
+        private void SwitchFullScreen()
+        {
+            if (this.WindowState == FormWindowState.Maximized)
+            {
+                this.WindowState = FormWindowState.Normal;
+                addMonitor("Console switched to normal screen");
+            }
+            else
+            {
+                this.WindowState = FormWindowState.Maximized;
+                addMonitor("Console switched to full screen");
+            }
+        }
+        private void SwitchCheckIsLoggedAtStartup()
+        {
+            if (chkIsLogged.Checked)
+                chkIsLogged.Checked = false;
+            else
+                chkIsLogged.Checked = true;
         }
 
         private void btnSwitchView_Click(object sender, EventArgs e)
@@ -547,10 +714,12 @@ namespace QRZTestApp
 
         private void SwitchView()
         {
+            string extra = "";
             if (btnSwitchView.Text == "-")
             {
                 splitContainer1.SplitterDistance = 25;
                 btnSwitchView.Text = "+";
+                extra = " (digit sw and press ENTER for show header)";
 
             }
             else
@@ -558,6 +727,7 @@ namespace QRZTestApp
                 splitContainer1.SplitterDistance = 225;
                 btnSwitchView.Text = "-";
             }
+            addMonitor($"View switched{extra}");
         }
 
         private void btnCommandList_Click(object sender, EventArgs e)
@@ -567,51 +737,40 @@ namespace QRZTestApp
 
         private void CommandList()
         {
+            int cmdlen = 40;
             addMonitor($"Command List");
-            addMonitor($"---------------------------");
-            addMonitor($"  Command List");
-            addMonitor($"    >cm");
-            addMonitor($"  Is Logged");
-            addMonitor($"    >il");
-            addMonitor($"  li Login");
-            addMonitor($"    >li username password");
-            addMonitor($"  LogOut");
-            addMonitor($"    >lo");
-            addMonitor($"  Lookup");
-            addMonitor($"    >lu qrz");
-            addMonitor($"  GetWorked");
-            addMonitor($"    >gw qrz");
-            addMonitor($"  Lookup and GetWorked");
-            addMonitor($"    >lw qrz");
-            addMonitor($"  QRZHome");
-            addMonitor($"    >hm");
-            addMonitor($"  GotoLogbook");
-            addMonitor($"    >lb");
-            addMonitor($"  QSOCount");
-            addMonitor($"    >qc");
-            addMonitor($"  LogbookPages");
-            addMonitor($"    >lp");
-            addMonitor($"  GotoPage");
-            addMonitor($"    >gp page");
-            addMonitor($"  pd Page Down");
-            addMonitor($"    >pd");
-            addMonitor($"  pu Page Up");
-            addMonitor($"    >pu");
-            addMonitor($"  Current Page");
-            addMonitor($"    >cp");
-            addMonitor($"  Order Date Asc");
-            addMonitor($"    >da");
-            addMonitor($"  Order Date Desc");
-            addMonitor($"    >dd");
-            addMonitor($"  tr Get Table Contente Raw");
-            addMonitor($"    >tr page");
-            addMonitor($"  tx GetTableContentXML");
-            addMonitor($"    >tx page");
-            addMonitor($"  Clear Monitor");
-            addMonitor($"    >cl");
-            addMonitor($"  Switch View");
-            addMonitor($"    >sw");
-            addMonitor($"---------------------------");
+            addMonitor($"-------------------------------------------------------------------------");
+            addMonitor(GetFixedString($"  Description", cmdlen) + "command [param] ...");
+            addMonitor($"-------------------------------------------------------------------------");
+            addMonitor("Credentials:");
+            addMonitor(GetFixedString($"  Is Logged", cmdlen) + "il");
+            addMonitor(GetFixedString($"  Login", cmdlen) + "li [username] [password]");
+            addMonitor(GetFixedString($"  LogOut", cmdlen) + "lo");
+            addMonitor("Search:");
+            addMonitor(GetFixedString($"  Lookup", cmdlen) + "lu [qrz]");
+            addMonitor(GetFixedString($"  Check Worked", cmdlen) + "gw [qrz]");
+            addMonitor(GetFixedString($"  Lookup and Check Worked", cmdlen) + "lw [qrz]");
+            addMonitor(GetFixedString($"  Check Worked and Lookup", cmdlen) + "wl [qrz]");
+            addMonitor("Logbook:");
+            addMonitor(GetFixedString($"  QSO Count", cmdlen) + "qc");
+            addMonitor(GetFixedString($"  Logbook pages", cmdlen) + "lp");
+            addMonitor(GetFixedString($"  Goto Page", cmdlen) + "gp [page]");
+            addMonitor(GetFixedString($"  Page Down", cmdlen) + "pd");
+            addMonitor(GetFixedString($"  Page Up", cmdlen) + "pu");
+            addMonitor(GetFixedString($"  Current Page", cmdlen) + "cp");
+            addMonitor(GetFixedString($"  Order Date Asc", cmdlen) + "da");
+            addMonitor(GetFixedString($"  Order Date Desc", cmdlen) + "dd");
+            addMonitor(GetFixedString($"  Get Table Contente Text", cmdlen) + "tt [page]");
+            addMonitor(GetFixedString($"  Get Table Contente Raw", cmdlen) + "tr [page]");
+            addMonitor(GetFixedString($"  GetTableContentXML", cmdlen) + "tx [page]");
+            addMonitor("General:");
+            addMonitor(GetFixedString($"  Clear Monitor", cmdlen) + "cl");
+            addMonitor(GetFixedString($"  Switch View", cmdlen) + "sw");
+            addMonitor(GetFixedString($"  Switch Check Is Logged at startup", cmdlen) + "sc");
+            addMonitor(GetFixedString($"  Switch screen (normal/fullsize)", cmdlen) + "fs");
+            addMonitor(GetFixedString($"  Command List", cmdlen) + "cm");
+            addMonitor(GetFixedString($"  Quit", cmdlen) + "qi");
+            addMonitor($"-------------------------------------------------------------------------");
         }
 
         private void frmTest_KeyDown(object sender, KeyEventArgs e)
@@ -621,6 +780,42 @@ namespace QRZTestApp
                 txtCommand.SelectAll();
                 txtCommand.Focus();
             }
+        }
+
+        private string GetFixedString(string str, int len)
+        {
+            if (string.IsNullOrEmpty(str))
+                str = "";
+            //return str.PadRight(len);
+            return str.PadRight(len).Substring(0, len);
+        }
+
+        private void chkIsLogged_CheckedChanged(object sender, EventArgs e)
+        {
+            SaveRegKey("CheckIsLoggedIn", chkIsLogged.Checked?"1":"0");
+            string cilasu = "disabled";
+            if (chkIsLogged.Checked)
+                cilasu = "enabled";
+            addMonitor($"Check Is Logged at startup = {cilasu}");
+        }
+
+        private void chkShowHeader_CheckedChanged(object sender, EventArgs e)
+        {
+            SaveRegKey("ShowHeader", chkShowHeader.Checked ? "1" : "0");
+            string cilasu = "disabled";
+            if (chkShowHeader.Checked)
+                cilasu = "enabled";
+            addMonitor($"Show Header at startup = {cilasu}");
+        }
+
+        private void GetTableContentText_Click(object sender, EventArgs e)
+        {
+            int page = 1;
+
+            if (int.TryParse(txtLogbookPage.Text, out int tmp))
+                page = tmp;
+
+            GetTableContenteText(page);
         }
     }
 }

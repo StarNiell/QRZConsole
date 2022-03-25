@@ -544,32 +544,37 @@ namespace QRZLibrary
                 HtmlElement el = wb.Document.GetElementById("ipage");
                 if (el != null)
                 {
-                    int cp = -1;
-
-                    el.SetAttribute("value", page.ToString());
-
-                    Stopwatch stopwatch = new Stopwatch();
-                    stopwatch.Start();
-
-                    bool PageLoaded = false;
-                    object[] o = new object[1];
-                    o[0] = "page";
-                    wb.Document.InvokeScript("goto", o);
-                    while (!PageLoaded)
+                    if (el.GetAttribute("value").ToString() != page.ToString())
                     {
-                        if (stopwatch.ElapsedMilliseconds > 1000)
+                        int cp = -1;
+
+                        el.SetAttribute("value", page.ToString());
+
+                        Stopwatch stopwatch = new Stopwatch();
+                        stopwatch.Start();
+
+                        bool PageLoaded = false;
+                        object[] o = new object[1];
+                        o[0] = "page";
+                        wb.Document.InvokeScript("goto", o);
+                        while (!PageLoaded)
                         {
-                            HtmlElement loadingDiv = wb.Document.GetElementById("filterLoading");
-                            PageLoaded = (loadingDiv.Style.Contains("display: none"));
+                            if (stopwatch.ElapsedMilliseconds > 1000)
+                            {
+                                HtmlElement loadingDiv = wb.Document.GetElementById("filterLoading");
+                                PageLoaded = (loadingDiv.Style.Contains("display: none"));
+                            }
+
+                            Application.DoEvents();
+                            Thread.Sleep(CpuSleep);
+                            if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
+                                return -1;
+
                         }
-
-                        Application.DoEvents();
-                        Thread.Sleep(CpuSleep);
-                        if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
-                            return -1;
-
+                        ret = GetCurrentLogbookPage();
                     }
-                    ret = GetCurrentLogbookPage();
+                    else
+                        ret = page;
                 }
                    
             }
@@ -667,6 +672,9 @@ namespace QRZLibrary
                                 break;
                             case 12:
                                 lbrow.Comments = cell.InnerText;
+                                break;
+                            case 13:
+                                lbrow.Confirmed = cell.InnerText.StartsWith("Confirmed");
                                 break;
                         }
                     }

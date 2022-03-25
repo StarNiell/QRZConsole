@@ -19,5 +19,6 @@ namespace QRZLibrary.Classes
         public string Country { get; set; }
         public string OperatorName { get; set; }
         public string Comments { get; set; }
+        public bool Confirmed { get; set;  }
     }
 }
