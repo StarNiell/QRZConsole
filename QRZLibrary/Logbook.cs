@@ -470,6 +470,27 @@ namespace QRZLibrary
             return ret;
         }
 
+        public int GetEntriesForPage()
+        {
+            int ret = -1;
+            if (GotoLogbook())
+            {
+                HtmlElement rowsForPage = wb.Document.GetElementById("dispOpt_rpp");
+                if (rowsForPage != null)
+                {
+                    dynamic dom = rowsForPage.DomElement;
+                    int index = (int)dom.selectedIndex();
+                    if (index != -1)
+                    {
+                        string strval = rowsForPage.Children[index].InnerText;
+                        if (int.TryParse(strval, out int tmp))
+                            ret = tmp;
+                    }
+                }
+            }
+            return ret;
+        }
+
         public int GetQSOsCount(bool ForceReload = false)
         {
             int ret = -1;
@@ -546,8 +567,6 @@ namespace QRZLibrary
                 {
                     if (el.GetAttribute("value").ToString() != page.ToString())
                     {
-                        int cp = -1;
-
                         el.SetAttribute("value", page.ToString());
 
                         Stopwatch stopwatch = new Stopwatch();
@@ -618,68 +637,173 @@ namespace QRZLibrary
 
         public List<LogbookEntry> GetLogbookPageContent(int page)
         {
+            
             List<LogbookEntry> ret = new List<LogbookEntry>();
             if (GotoLoogbookPage(page) == page)
             {
                 HtmlElement table = wb.Document.GetElementById("lbtab");
-                HtmlElementCollection rows = table.GetElementsByTagName("TR");
-
-                foreach (HtmlElement row in rows)
+                HtmlElement thead = QRZHelper.GetElementByTagAndClassName(table, "thead", "");
+                if (thead.TagName != null)
                 {
-                    LogbookEntry lbrow = new LogbookEntry();
-                    HtmlElementCollection cols = row.GetElementsByTagName("TD");
-                    int currCol = 0;
-                    string tmp = string.Empty;
-                    string DateTimeStr = string.Empty;
-                    foreach (HtmlElement cell in cols)
+                    HtmlElementCollection colnames = thead.GetElementsByTagName("TH");
+                    if (colnames != null)
                     {
-                        currCol++;
-                        switch (currCol)
+                        HtmlElement tbody = QRZHelper.GetElementByTagAndClassName(table, "tbody", "");
+                        if (tbody != null)
                         {
-                            case 1:
-                                lbrow.position = QRZHelper.GetIntByString(cell.InnerText);
-                                break;
-                            case 2:
-                                DateTimeStr = cell.InnerText;
-                                break;
-                            case 3:
-                                DateTimeStr += $" {cell.InnerText}";
-                                lbrow.QSODateTime = QRZHelper.GetDateTimeByString(DateTimeStr);
-                                break;
-                            case 4:
-                                lbrow.Call = cell.InnerText;
-                                break;
-                            case 5:
-                                lbrow.Band = cell.InnerText;
-                                break;
-                            case 6:
-                                lbrow.Frequency = cell.InnerText;
-                                break;
-                            case 7:
-                                lbrow.Mode = cell.InnerText;
-                                break;
-                            case 8:
-                                lbrow.GridLocator = cell.InnerText;
-                                break;
-                            case 9:
-                                // Flag Image
-                                break;
-                            case 10:
-                                lbrow.Country = cell.InnerText;
-                                break;
-                            case 11:
-                                lbrow.OperatorName = cell.InnerText;
-                                break;
-                            case 12:
-                                lbrow.Comments = cell.InnerText;
-                                break;
-                            case 13:
-                                lbrow.Confirmed = cell.InnerText.StartsWith("Confirmed");
-                                break;
+                            HtmlElementCollection rows = tbody.GetElementsByTagName("TR");
+                            foreach (HtmlElement row in rows)
+                            {
+                                LogbookEntry lbrow = new LogbookEntry();
+                                HtmlElementCollection cols = row.GetElementsByTagName("TD");
+                                int currCol = 0;
+                                string tmp = string.Empty;
+                                string DateTimeStr = string.Empty;
+                                foreach (HtmlElement cell in cols)
+                                {
+                                    switch (colnames[currCol].Id)
+                                    {
+                                        case "th_lnum":
+                                            lbrow.position = QRZHelper.GetIntByString(cell.InnerText);
+                                            break;
+                                        case "th_date":
+                                            DateTimeStr = cell.InnerText;
+                                            break;
+                                        case "th_time":
+                                            DateTimeStr += $" {cell.InnerText}";
+                                            lbrow.QSODateTime = QRZHelper.GetDateTimeByString(DateTimeStr);
+                                            break;
+                                        case "th_call2":
+                                            lbrow.Call = cell.InnerText;
+                                            break;
+                                        case "th_band1":
+                                            lbrow.Band = cell.InnerText;
+                                            break;
+                                        case "th_freq2":
+                                            lbrow.Frequency = cell.InnerText;
+                                            break;
+                                        case "th_mode2":
+                                            lbrow.Mode = cell.InnerText;
+                                            break;
+                                        case "th_grid2":
+                                            lbrow.GridLocator = cell.InnerText;
+                                            break;
+                                        case "th_country2":
+                                            lbrow.Country = cell.InnerText;
+                                            break;
+                                        case "th_name2":
+                                            lbrow.OperatorName = cell.InnerText;
+                                            break;
+                                        case "th_comments":
+                                            lbrow.Comments = cell.InnerText;
+                                            break;
+                                        case "th_status":
+                                            lbrow.Confirmed = cell.InnerText.StartsWith("Confirmed");
+                                            break;
+                                    }
+                                    currCol++;
+                                }
+                                if (lbrow.position > 0)
+                                    ret.Add(lbrow);
+                            }
                         }
                     }
-                    if (lbrow.position > 0)
-                        ret.Add(lbrow);
+                }
+            }
+            return ret;
+        }
+
+
+        public List<LogbookEntry> GetLogbookEntriesByRange(int start, int end)
+        {
+            List<LogbookEntry> ret = new List<LogbookEntry>();
+            int qsoForPage = GetEntriesForPage();
+            if (qsoForPage > 0)
+            {
+                int pageStart = (start / qsoForPage) + 1;
+                int pageEnd = (end / qsoForPage) + 1;
+                if (pageStart > 0 && pageEnd > 0 && pageStart <= pageEnd)
+                {
+                    for (int i = pageStart; i <= pageEnd; i++)
+                    {
+                        if (GotoLoogbookPage(i) == i)
+                        {
+                            HtmlElement table = wb.Document.GetElementById("lbtab");
+                            HtmlElement thead = QRZHelper.GetElementByTagAndClassName(table, "thead", "");
+                            if (thead.TagName != null)
+                            {
+                                HtmlElementCollection colnames = thead.GetElementsByTagName("TH");
+                                if (colnames != null)
+                                {
+                                    HtmlElement tbody = QRZHelper.GetElementByTagAndClassName(table, "tbody", "");
+                                    if (tbody != null)
+                                    {
+                                        HtmlElementCollection rows = tbody.GetElementsByTagName("TR");
+                                        foreach (HtmlElement row in rows)
+                                        {
+                                            LogbookEntry lbrow = new LogbookEntry();
+                                            HtmlElementCollection cols = row.GetElementsByTagName("TD");
+                                            int currCol = 0;
+                                            int curPos = -1;
+                                            string tmp = string.Empty;
+                                            string DateTimeStr = string.Empty;
+                                            foreach (HtmlElement cell in cols)
+                                            {
+                                                switch (colnames[currCol].Id)
+                                                {
+                                                    case "th_lnum":
+                                                        curPos = QRZHelper.GetIntByString(cell.InnerText);
+                                                        if (!(start <= curPos && curPos <= end))
+                                                            break;
+                                                        lbrow.position = curPos;
+                                                        break;
+                                                    case "th_date":
+                                                        DateTimeStr = cell.InnerText;
+                                                        break;
+                                                    case "th_time":
+                                                        DateTimeStr += $" {cell.InnerText}";
+                                                        lbrow.QSODateTime = QRZHelper.GetDateTimeByString(DateTimeStr);
+                                                        break;
+                                                    case "th_call2":
+                                                        lbrow.Call = cell.InnerText;
+                                                        break;
+                                                    case "th_band1":
+                                                        lbrow.Band = cell.InnerText;
+                                                        break;
+                                                    case "th_freq2":
+                                                        lbrow.Frequency = cell.InnerText;
+                                                        break;
+                                                    case "th_mode2":
+                                                        lbrow.Mode = cell.InnerText;
+                                                        break;
+                                                    case "th_grid2":
+                                                        lbrow.GridLocator = cell.InnerText;
+                                                        break;
+                                                    case "th_country2":
+                                                        lbrow.Country = cell.InnerText;
+                                                        break;
+                                                    case "th_name2":
+                                                        lbrow.OperatorName = cell.InnerText;
+                                                        break;
+                                                    case "th_comments":
+                                                        lbrow.Comments = cell.InnerText;
+                                                        break;
+                                                    case "th_status":
+                                                        lbrow.Confirmed = cell.InnerText.StartsWith("Confirmed");
+                                                        break;
+                                                }
+                                                if (curPos > -1 && (!(start <= curPos && curPos <= end)))
+                                                    break;
+                                                currCol++;
+                                            }
+                                            if (lbrow.position > 0)
+                                                ret.Add(lbrow);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
             return ret;

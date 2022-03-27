@@ -311,10 +311,10 @@ namespace QRZTestApp
             if (int.TryParse(txtLogbookPage.Text, out int tmp))
                 page = tmp;
 
-            GetTableContenteRaw(page);
+            GetTableContenteRawView(page);
         }
 
-        private void GetTableContenteRaw(int page)
+        private void GetTableContenteRawView(int page)
         {
             if (page < 1)
                 int.TryParse(txtLogbookPage.Text, out page);
@@ -357,21 +357,95 @@ namespace QRZTestApp
             }
         }
 
-        private void GetTableContenteText(int page)
+        private void GetQSObyRangeTextView(int start, int end)
+        {
+            addMonitor($"Get QSOs by range: from position {start} to {end}... ");
+
+            List<LogbookEntry> lbentries = qrz.GetLogbookEntriesByRange(start, end);
+            if (lbentries != null)
+            {
+                if (lbentries.Count > 0)
+                {
+                    string headerLine = new string('-', 217);
+                    addMonitor("");
+                    addMonitor(headerLine);
+
+                    string headerText = "";
+                    headerText += "| ";
+                    headerText += GetFixedString("Num.", 5);
+                    headerText += " | ";
+                    headerText += GetFixedString("Date - Time", 16);
+                    headerText += " | ";
+                    headerText += GetFixedString("Call", 13);
+                    headerText += " | ";
+                    headerText += GetFixedString("Band", 5);
+                    headerText += " | ";
+                    headerText += GetFixedString("Freq.", 7);
+                    headerText += " | ";
+                    headerText += GetFixedString("Mode", 6);
+                    headerText += " | ";
+                    headerText += "QSL";
+                    headerText += " | ";
+                    headerText += GetFixedString("GridLoc", 8);
+                    headerText += " | ";
+                    headerText += GetFixedString("Country", 20);
+                    headerText += " | ";
+                    headerText += GetFixedString("Operator Name", 50);
+                    headerText += " | ";
+                    headerText += GetFixedString("Comments", 50);
+                    headerText += " |";
+                    addMonitor(headerText);
+                    addMonitor(headerLine);
+
+                    foreach (LogbookEntry entry in lbentries)
+                    {
+                        string rowText = "";
+                        rowText += "| ";
+                        rowText += GetFixedString(entry.position.ToString().PadLeft(5), 5);
+                        rowText += " | ";
+                        rowText += GetFixedString(entry.QSODateTime.ToString("yyyy-MM-dd HH:mm"), 16);
+                        rowText += " | ";
+                        rowText += GetFixedString(entry.Call, 13);
+                        rowText += " | ";
+                        rowText += GetFixedString(entry.Band, 5);
+                        rowText += " | ";
+                        rowText += GetFixedString(entry.Frequency, 7);
+                        rowText += " | ";
+                        rowText += GetFixedString(entry.Mode, 6);
+                        rowText += " | ";
+                        rowText += entry.Confirmed ? " * " : "   ";
+                        rowText += " | ";
+                        rowText += GetFixedString(entry.GridLocator, 8);
+                        rowText += " | ";
+                        rowText += GetFixedString(entry.Country, 20);
+                        rowText += " | ";
+                        rowText += GetFixedString(entry.OperatorName, 50);
+                        rowText += " | ";
+                        rowText += GetFixedString(entry.Comments, 50);
+                        rowText += " |";
+                        addMonitor(rowText);
+                    }
+                    addMonitor(headerLine);
+
+                }
+                else
+                    addMonitor("Found 0 entries");
+            }
+        }
+
+        private void GetTableContentTextView(int page)
         {
             if (page < 1)
                 int.TryParse(txtLogbookPage.Text, out page);
 
             addMonitor($"Get Table content text of page {page}... ");
 
-            string pageText = "";
-
             List<LogbookEntry> lbentries = qrz.GetLogbookPageContent(page);
             if (lbentries != null)
             {
                 if (lbentries.Count > 0)
                 {
-                    string headerLine = new string('-', 211);
+                    string headerLine = new string('-', 217);
                     addMonitor("");
                     addMonitor(headerLine);
 
@@ -533,6 +607,12 @@ namespace QRZTestApp
                 addMonitor($"Unable to Set Logbook Order Date Asc");
         }
 
+        private void GetEntriesForPage()
+        {
+            addMonitor($"Get QSO for page... ");
+            addMonitor($"QSO for page = {qrz.GetEntriesForPage()}");
+        }
+
         private void btnOrderDateDesc_Click(object sender, EventArgs e)
         {
             OrderDateDesc();
@@ -550,12 +630,34 @@ namespace QRZTestApp
 
         private void txtCommand_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.KeyCode == Keys.Return)
+            if (e.KeyCode == Keys.Enter)
             {
+                e.SuppressKeyPress = true;
+            }
+        }
+
+        private void btnDing_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void txtCommand_KeyUp(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+
                 elabCommand(txtCommand.Text);
+
+
                 txtCommand.SelectAll();
                 txtCommand.Focus();
+
+                e.Handled = true;
             }
+        }
+        private void txtCommand_KeyPress(object sender, KeyPressEventArgs e)
+        {
+
         }
 
         private void elabCommand(string command)
@@ -634,6 +736,9 @@ namespace QRZTestApp
                     case "qc":
                         QSOCount();
                         break;
+                    case "qp":
+                        GetEntriesForPage();
+                        break;
                     case "lp":
                         LogbookPages();
                         break;
@@ -656,13 +761,16 @@ namespace QRZTestApp
                         OrderDateDesc();
                         break;
                     case "tt":
-                        GetTableContenteText(iprm1);
+                        GetTableContentTextView(iprm1);
                         break;
                     case "tr":
-                        GetTableContenteRaw(iprm1);
+                        GetTableContenteRawView(iprm1);
                         break;
                     case "tx":
                         GetTableContentXML(iprm1);
+                        break;
+                    case "qt":
+                        GetQSObyRangeTextView(iprm1, iprm2);
                         break;
                     case "cl":
                         ClearMonitor();
@@ -754,6 +862,7 @@ namespace QRZTestApp
             addMonitor("Logbook:");
             addMonitor(GetFixedString($"  QSO Count", cmdlen) + "qc");
             addMonitor(GetFixedString($"  Logbook pages", cmdlen) + "lp");
+            addMonitor(GetFixedString($"  QSO for page", cmdlen) + "qp");
             addMonitor(GetFixedString($"  Goto Page", cmdlen) + "gp [page]");
             addMonitor(GetFixedString($"  Page Down", cmdlen) + "pd");
             addMonitor(GetFixedString($"  Page Up", cmdlen) + "pu");
@@ -762,7 +871,8 @@ namespace QRZTestApp
             addMonitor(GetFixedString($"  Order Date Desc", cmdlen) + "dd");
             addMonitor(GetFixedString($"  Get Table Contente Text", cmdlen) + "tt [page]");
             addMonitor(GetFixedString($"  Get Table Contente Raw", cmdlen) + "tr [page]");
-            addMonitor(GetFixedString($"  GetTableContentXML", cmdlen) + "tx [page]");
+            addMonitor(GetFixedString($"  Get Table Content XML", cmdlen) + "tx [page]");
+            addMonitor(GetFixedString($"  Get QSOs by range Text", cmdlen) + "qt [start Page] [end Page]");
             addMonitor("General:");
             addMonitor(GetFixedString($"  Clear Monitor", cmdlen) + "cl");
             addMonitor(GetFixedString($"  Switch View", cmdlen) + "sw");
@@ -815,7 +925,12 @@ namespace QRZTestApp
             if (int.TryParse(txtLogbookPage.Text, out int tmp))
                 page = tmp;
 
-            GetTableContenteText(page);
+            GetTableContentTextView(page);
+        }
+
+        private void btnQSOforPage_Click(object sender, EventArgs e)
+        {
+            GetEntriesForPage();
         }
     }
 }

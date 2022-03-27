@@ -38,6 +38,7 @@ namespace QRZTestApp
             this.btnPageDown = new System.Windows.Forms.Button();
             this.btnCurrentPage = new System.Windows.Forms.Button();
             this.btnPageUp = new System.Windows.Forms.Button();
+            this.btnGetTableContentText = new System.Windows.Forms.Button();
             this.btnGetTableContentXML = new System.Windows.Forms.Button();
             this.btnGetTableContentRaw = new System.Windows.Forms.Button();
             this.txtLogbookPage = new System.Windows.Forms.TextBox();
@@ -64,7 +65,7 @@ namespace QRZTestApp
             this.btnLogOut = new System.Windows.Forms.Button();
             this.btnIsLogged = new System.Windows.Forms.Button();
             this.txtMonitor = new System.Windows.Forms.TextBox();
-            this.GetTableContentText = new System.Windows.Forms.Button();
+            this.btnQSOforPage = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
             this.splitContainer1.Panel1.SuspendLayout();
             this.splitContainer1.Panel2.SuspendLayout();
@@ -119,15 +120,18 @@ namespace QRZTestApp
             this.txtCommand.Size = new System.Drawing.Size(936, 20);
             this.txtCommand.TabIndex = 41;
             this.txtCommand.KeyDown += new System.Windows.Forms.KeyEventHandler(this.txtCommand_KeyDown);
+            this.txtCommand.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.txtCommand_KeyPress);
+            this.txtCommand.KeyUp += new System.Windows.Forms.KeyEventHandler(this.txtCommand_KeyUp);
             // 
             // groupBox3
             // 
-            this.groupBox3.Controls.Add(this.GetTableContentText);
+            this.groupBox3.Controls.Add(this.btnQSOforPage);
             this.groupBox3.Controls.Add(this.btnOrderDateDesc);
             this.groupBox3.Controls.Add(this.btnOrderDateAsc);
             this.groupBox3.Controls.Add(this.btnPageDown);
             this.groupBox3.Controls.Add(this.btnCurrentPage);
             this.groupBox3.Controls.Add(this.btnPageUp);
+            this.groupBox3.Controls.Add(this.btnGetTableContentText);
             this.groupBox3.Controls.Add(this.btnGetTableContentXML);
             this.groupBox3.Controls.Add(this.btnGetTableContentRaw);
             this.groupBox3.Controls.Add(this.txtLogbookPage);
@@ -142,11 +146,21 @@ namespace QRZTestApp
             this.groupBox3.TabStop = false;
             this.groupBox3.Text = "Logbook";
             // 
+            // btnGetTableContentText
+            // 
+            this.btnGetTableContentText.Location = new System.Drawing.Point(308, 87);
+            this.btnGetTableContentText.Name = "btnGetTableContentText";
+            this.btnGetTableContentText.Size = new System.Drawing.Size(133, 31);
+            this.btnGetTableContentText.TabIndex = 23;
+            this.btnGetTableContentText.Text = "Get Table Content Text";
+            this.btnGetTableContentText.UseVisualStyleBackColor = true;
+            this.btnGetTableContentText.Click += new System.EventHandler(this.GetTableContentText_Click);
+            // 
             // btnOrderDateDesc
             // 
-            this.btnOrderDateDesc.Location = new System.Drawing.Point(108, 87);
+            this.btnOrderDateDesc.Location = new System.Drawing.Point(209, 89);
             this.btnOrderDateDesc.Name = "btnOrderDateDesc";
-            this.btnOrderDateDesc.Size = new System.Drawing.Size(95, 31);
+            this.btnOrderDateDesc.Size = new System.Drawing.Size(93, 31);
             this.btnOrderDateDesc.TabIndex = 20;
             this.btnOrderDateDesc.Text = "Date Desc";
             this.btnOrderDateDesc.UseVisualStyleBackColor = true;
@@ -154,9 +168,9 @@ namespace QRZTestApp
             // 
             // btnOrderDateAsc
             // 
-            this.btnOrderDateAsc.Location = new System.Drawing.Point(11, 87);
+            this.btnOrderDateAsc.Location = new System.Drawing.Point(108, 89);
             this.btnOrderDateAsc.Name = "btnOrderDateAsc";
-            this.btnOrderDateAsc.Size = new System.Drawing.Size(91, 31);
+            this.btnOrderDateAsc.Size = new System.Drawing.Size(95, 31);
             this.btnOrderDateAsc.TabIndex = 19;
             this.btnOrderDateAsc.Text = "Date Asc";
             this.btnOrderDateAsc.UseVisualStyleBackColor = true;
@@ -462,15 +476,15 @@ namespace QRZTestApp
             this.txtMonitor.TabIndex = 24;
             this.txtMonitor.WordWrap = false;
             // 
-            // GetTableContentText
+            // btnQSOforPage
             // 
-            this.GetTableContentText.Location = new System.Drawing.Point(308, 87);
-            this.GetTableContentText.Name = "GetTableContentText";
-            this.GetTableContentText.Size = new System.Drawing.Size(133, 31);
-            this.GetTableContentText.TabIndex = 23;
-            this.GetTableContentText.Text = "Get Table Content Text";
-            this.GetTableContentText.UseVisualStyleBackColor = true;
-            this.GetTableContentText.Click += new System.EventHandler(this.GetTableContentText_Click);
+            this.btnQSOforPage.Location = new System.Drawing.Point(11, 89);
+            this.btnQSOforPage.Name = "btnQSOforPage";
+            this.btnQSOforPage.Size = new System.Drawing.Size(91, 31);
+            this.btnQSOforPage.TabIndex = 24;
+            this.btnQSOforPage.Text = "QSO for page";
+            this.btnQSOforPage.UseVisualStyleBackColor = true;
+            this.btnQSOforPage.Click += new System.EventHandler(this.btnQSOforPage_Click);
             // 
             // frmTest
             // 
@@ -503,8 +517,6 @@ namespace QRZTestApp
 
         #endregion
 
-        private System.Windows.Forms.TabControl tabControl1;
-        private System.Windows.Forms.TabPage tabPage1;
         private System.Windows.Forms.SplitContainer splitContainer1;
         private System.Windows.Forms.Button btnGotoLookbook;
         private System.Windows.Forms.Button btnQSOCount;
@@ -540,7 +552,8 @@ namespace QRZTestApp
         private System.Windows.Forms.Button btnCommandList;
         private System.Windows.Forms.CheckBox chkIsLogged;
         private System.Windows.Forms.CheckBox chkShowHeader;
-        private System.Windows.Forms.Button GetTableContentText;
+        private System.Windows.Forms.Button btnGetTableContentText;
+        private System.Windows.Forms.Button btnQSOforPage;
     }
 }
 
