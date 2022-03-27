@@ -12,18 +12,30 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Winsock_Orcas;
 
 namespace QRZTestApp
 {
-    public partial class frmTest : Form
+    public partial class frmMain : Form
     {
         Logbook qrz;
 
-        private delegate void SafeCallDelegate(string text);
-
+        private delegate void SafeCallDelegate(string log, bool appendNewLine);
         private string lastQRZ = string.Empty;
 
-        public frmTest()
+        private Winsock ws;
+
+        string ClusterAddr = "gb7ujs.ham-radio-op.net";
+        int ClusterPort = 7373;
+        private bool ClusterDebug = false;
+        string ClusterDXprompt = "ClusterDX>";
+        private bool clusterConnected = false;
+
+        private int splitterExpand = 225;
+        private int splittercompress = 25;
+        private int pixelsResize = 2;
+
+        public frmMain()
         {
             InitializeComponent();
 
@@ -31,7 +43,7 @@ namespace QRZTestApp
         }
 
 
-        private void addMonitor(string log)
+        private void addMonitor(string log, bool appendNewLine = true)
         {
             if (txtMonitor.InvokeRequired)
             {
@@ -40,7 +52,7 @@ namespace QRZTestApp
             }
             else
             {
-                txtMonitor.AppendText(log + Environment.NewLine);
+                txtMonitor.AppendText(log + (appendNewLine ? Environment.NewLine : string.Empty));
                 txtMonitor.SelectionStart = txtMonitor.Text.Length;
                 txtMonitor.ScrollToCaret();
             }
@@ -784,7 +796,17 @@ namespace QRZTestApp
                     case "fs":
                         SwitchFullScreen();
                         break;
+                    case "dx":
+                        ClusterDxOpen(prm1, prm2);
+                        break;
+                    case "sb":
+                        ClusterDxSelectBand(prm1, iprm2);
+                        break;
+                    case "dc":
+                        ClusterDxCmd(command);
+                        break;
                     case "qi":
+                    case "exit":
                         this.Close();
                         break;
                     default:
@@ -825,17 +847,29 @@ namespace QRZTestApp
             string extra = "";
             if (btnSwitchView.Text == "-")
             {
-                splitContainer1.SplitterDistance = 25;
+                splitContainer1.SplitterDistance = splittercompress;
                 btnSwitchView.Text = "+";
                 extra = " (digit sw and press ENTER for show header)";
 
             }
             else
             {
-                splitContainer1.SplitterDistance = 225;
+                splitContainer1.SplitterDistance = splitterExpand;
                 btnSwitchView.Text = "-";
             }
             addMonitor($"View switched{extra}");
+        }
+
+        private void resetSplitter()
+        {
+            if (btnSwitchView.Text == "-")
+            {
+                splitContainer1.SplitterDistance = splitterExpand;
+            }
+            else
+            {
+                splitContainer1.SplitterDistance = splittercompress;
+            }
         }
 
         private void btnCommandList_Click(object sender, EventArgs e)
@@ -873,6 +907,10 @@ namespace QRZTestApp
             addMonitor(GetFixedString($"  Get Table Contente Raw", cmdlen) + "tr [page]");
             addMonitor(GetFixedString($"  Get Table Content XML", cmdlen) + "tx [page]");
             addMonitor(GetFixedString($"  Get QSOs by range Text", cmdlen) + "qt [start Page] [end Page]");
+            addMonitor("Cluster DX:");
+            addMonitor(GetFixedString($"  Open Cluster DX", cmdlen) + "dx");
+            addMonitor(GetFixedString($"  Show DX on", cmdlen) + "sb [band] [items]");
+            addMonitor(GetFixedString($"  DXSpider command", cmdlen) + "dc [DXSpider command ]");
             addMonitor("General:");
             addMonitor(GetFixedString($"  Clear Monitor", cmdlen) + "cl");
             addMonitor(GetFixedString($"  Switch View", cmdlen) + "sw");
@@ -890,6 +928,51 @@ namespace QRZTestApp
                 txtCommand.SelectAll();
                 txtCommand.Focus();
             }
+
+            if (e.Control && (e.KeyCode == Keys.Add || e.KeyCode == Keys.Oemplus))
+            {
+                if (txtMonitor.Font.Size <= 40)
+                {
+                    txtMonitor.Font = new Font(txtMonitor.Font.FontFamily, txtMonitor.Font.Size + 1);
+                    txtCommand.Font = txtMonitor.Font;
+                    splitterExpand = splitterExpand + pixelsResize;
+                    splittercompress = splittercompress + pixelsResize;
+                    btnSwitchView.Height = btnSwitchView.Height + pixelsResize;
+                    btnSwitchView.Width = btnSwitchView.Width + pixelsResize;
+                    btnSwitchView.Top = btnSwitchView.Top - pixelsResize;
+                    btnSwitchView.Left = btnSwitchView.Left - pixelsResize;
+                    resetSplitter();
+                }
+            }
+
+            if (e.Control && (e.KeyCode == Keys.Subtract || e.KeyCode == Keys.OemMinus))
+            {
+                if (txtMonitor.Font.Size >= 6)
+                {
+                    txtMonitor.Font = new Font(txtMonitor.Font.FontFamily, txtMonitor.Font.Size - 1);
+                    txtCommand.Font = txtMonitor.Font;
+                    splitterExpand = splitterExpand - pixelsResize;
+                    splittercompress = splittercompress - pixelsResize;
+                    btnSwitchView.Height = btnSwitchView.Height - pixelsResize;
+                    btnSwitchView.Width = btnSwitchView.Width - pixelsResize;
+                    btnSwitchView.Top = btnSwitchView.Top + pixelsResize;
+                    btnSwitchView.Left = btnSwitchView.Left + pixelsResize;
+                    resetSplitter();
+
+                }
+            }
+
+            if (e.Control && (e.KeyCode == Keys.D0 || e.KeyCode == Keys.NumPad0))
+            {
+                txtMonitor.Font = new Font(txtMonitor.Font.FontFamily, 8.25f);
+                txtCommand.Font = txtMonitor.Font;
+                splitterExpand = 225;
+                splittercompress = 25;
+                btnSwitchView.Height = 20;
+                btnSwitchView.Width = 20;
+                resetSplitter();
+            }
+
         }
 
         private string GetFixedString(string str, int len)
@@ -931,6 +1014,166 @@ namespace QRZTestApp
         private void btnQSOforPage_Click(object sender, EventArgs e)
         {
             GetEntriesForPage();
+        }
+
+        private void frmMain_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            disposeSocket();
+        }
+
+        #region ClusterDX
+        private void Ws_SendComplete(object sender, WinsockSendEventArgs e)
+        {
+            if (ClusterDebug)
+                addMonitor($"CLuester DX Send Complete");
+        }
+
+        private void Ws_DataArrival(object sender, WinsockDataArrivalEventArgs e)
+        {
+            string dataArrival = "";
+            object obj = ws.Get();
+            if (obj.GetType() == Type.GetType("string"))
+                dataArrival = obj.ToString();
+            else if (obj.GetType() == Type.GetType("System.Byte[]"))
+                dataArrival = Encoding.Default.GetString((byte[])obj);
+
+            dataArrival = dataArrival.Replace($"{ClusterDXprompt}\r\n", string.Empty);
+
+            if (dataArrival != string.Empty && clusterConnected)
+            {
+                addMonitor(dataArrival, false);
+            }
+
+            if (!clusterConnected)
+            {
+                clusterConnected = (dataArrival.IndexOf("WX disabled for ") > 0);
+                if (clusterConnected)
+                    addMonitor("Cluster DX Logged ln");
+            }
+
+
+        }
+
+        private void Ws_Disconnected(object sender, EventArgs e)
+        {
+            addMonitor($"Cluster DX disconnected: {ws.RemoteHost}:{ws.RemotePort}");
+            clusterConnected = false;
+        }
+
+        private void Ws_ErrorReceived(object sender, WinsockErrorReceivedEventArgs e)
+        {
+            addMonitor($"#Error: {e.Message}");
+        }
+
+        private void Ws_Connected(object sender, WinsockConnectedEventArgs e)
+        {
+            addMonitor($"Clusterd DX connected: {ws.RemoteHost}:{ws.RemotePort}");
+            LoginClusterDX();
+        }
+
+        private void ClusterDxSelectBand(string band, int items = 0)
+        {
+            if (!clusterConnected)
+            {
+                addMonitor("Cluster DX not available. Digit dx for login Cluster DX");
+            }
+            else
+            {
+                if (items == 0)
+                    items = 20;
+                Send($"show/dx {items} on {band}");
+            }
+        }
+
+        private void ClusterDxCmd(string command)
+        {
+            if (!clusterConnected)
+            {
+                addMonitor("Cluster DX not available. Digit dx for login Cluster DX");
+            }
+            else
+            {
+                string cmd = command.Substring(3, command.Length - 3);
+                Send($"{cmd}");
+            }
+        }
+        private void ClusterDxOpen(string usrename = "", string passowrd = "")
+        {
+            
+            if (ws == null)
+            {
+                ws = new Winsock();
+                ws.LegacySupport = true;
+
+                ws.Connected += Ws_Connected;
+                ws.ErrorReceived += Ws_ErrorReceived;
+                ws.Disconnected += Ws_Disconnected;
+                ws.DataArrival += Ws_DataArrival;
+                ws.SendComplete += Ws_SendComplete;
+
+            }
+            if (ws.State != WinsockStates.Connected)
+            {
+                ws.Connect(ClusterAddr, ClusterPort);
+            }
+
+            if (clusterConnected)
+                addMonitor("Cluster already connected");
+
+        }
+
+        private void LoginClusterDX()
+        {
+
+            addMonitor("Login Cluster DX...");
+            Send(txtUsername.Text);
+            Send($"set/prompt {ClusterDXprompt}");
+            Send($"unset/echo");
+            //SendWSCommandByQueue($"set/qth {City} {StateProv}, {Country}");
+            Send("unset/announce");
+            Send("unset/anntalk");
+            Send("unset/dx");
+            Send("unset/talk");
+            Send("unset/wcy");
+            Send("unset/wwv");
+            Send("unset/wx");
+            //Send($"show/dx 50 on 40m");
+
+        }
+
+        private void Send(string request)
+        {
+            if (ClusterDebug)
+                addMonitor($"Send: {request}");
+
+            ws.Send($"{request}\n");
+        }
+
+        private void disposeSocket()
+        {
+            if (ws != null)
+            {
+                ws.Connected -= Ws_Connected;
+                ws.ErrorReceived -= Ws_ErrorReceived;
+                ws.Disconnected -= Ws_Disconnected;
+                ws.DataArrival -= Ws_DataArrival;
+                ws.SendComplete -= Ws_SendComplete;
+
+                ws.Close();
+
+                ws.Dispose();
+
+                ws = null;
+
+            }
+        }
+        #endregion
+
+        private void txtMonitor_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            txtCommand.Text = e.KeyChar.ToString();
+            txtCommand.SelectionStart = txtCommand.Text.Length;
+            txtCommand.Focus();
         }
     }
 }

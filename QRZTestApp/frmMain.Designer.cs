@@ -1,7 +1,7 @@
 ﻿
 namespace QRZTestApp
 {
-    partial class frmTest
+    partial class frmMain
     {
         /// <summary>
         /// Variabile di progettazione necessaria.
@@ -33,6 +33,7 @@ namespace QRZTestApp
             this.btnSwitchView = new System.Windows.Forms.Button();
             this.txtCommand = new System.Windows.Forms.TextBox();
             this.groupBox3 = new System.Windows.Forms.GroupBox();
+            this.btnQSOforPage = new System.Windows.Forms.Button();
             this.btnOrderDateDesc = new System.Windows.Forms.Button();
             this.btnOrderDateAsc = new System.Windows.Forms.Button();
             this.btnPageDown = new System.Windows.Forms.Button();
@@ -65,7 +66,6 @@ namespace QRZTestApp
             this.btnLogOut = new System.Windows.Forms.Button();
             this.btnIsLogged = new System.Windows.Forms.Button();
             this.txtMonitor = new System.Windows.Forms.TextBox();
-            this.btnQSOforPage = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
             this.splitContainer1.Panel1.SuspendLayout();
             this.splitContainer1.Panel2.SuspendLayout();
@@ -146,15 +146,15 @@ namespace QRZTestApp
             this.groupBox3.TabStop = false;
             this.groupBox3.Text = "Logbook";
             // 
-            // btnGetTableContentText
+            // btnQSOforPage
             // 
-            this.btnGetTableContentText.Location = new System.Drawing.Point(308, 87);
-            this.btnGetTableContentText.Name = "btnGetTableContentText";
-            this.btnGetTableContentText.Size = new System.Drawing.Size(133, 31);
-            this.btnGetTableContentText.TabIndex = 23;
-            this.btnGetTableContentText.Text = "Get Table Content Text";
-            this.btnGetTableContentText.UseVisualStyleBackColor = true;
-            this.btnGetTableContentText.Click += new System.EventHandler(this.GetTableContentText_Click);
+            this.btnQSOforPage.Location = new System.Drawing.Point(11, 89);
+            this.btnQSOforPage.Name = "btnQSOforPage";
+            this.btnQSOforPage.Size = new System.Drawing.Size(91, 31);
+            this.btnQSOforPage.TabIndex = 24;
+            this.btnQSOforPage.Text = "QSO for page";
+            this.btnQSOforPage.UseVisualStyleBackColor = true;
+            this.btnQSOforPage.Click += new System.EventHandler(this.btnQSOforPage_Click);
             // 
             // btnOrderDateDesc
             // 
@@ -205,6 +205,16 @@ namespace QRZTestApp
             this.btnPageUp.Text = "+";
             this.btnPageUp.UseVisualStyleBackColor = true;
             this.btnPageUp.Click += new System.EventHandler(this.btnPageUp_Click);
+            // 
+            // btnGetTableContentText
+            // 
+            this.btnGetTableContentText.Location = new System.Drawing.Point(308, 87);
+            this.btnGetTableContentText.Name = "btnGetTableContentText";
+            this.btnGetTableContentText.Size = new System.Drawing.Size(133, 31);
+            this.btnGetTableContentText.TabIndex = 23;
+            this.btnGetTableContentText.Text = "Get Table Content Text";
+            this.btnGetTableContentText.UseVisualStyleBackColor = true;
+            this.btnGetTableContentText.Click += new System.EventHandler(this.GetTableContentText_Click);
             // 
             // btnGetTableContentXML
             // 
@@ -471,22 +481,14 @@ namespace QRZTestApp
             this.txtMonitor.Location = new System.Drawing.Point(0, 0);
             this.txtMonitor.Multiline = true;
             this.txtMonitor.Name = "txtMonitor";
+            this.txtMonitor.ReadOnly = true;
             this.txtMonitor.ScrollBars = System.Windows.Forms.ScrollBars.Both;
             this.txtMonitor.Size = new System.Drawing.Size(936, 451);
             this.txtMonitor.TabIndex = 24;
             this.txtMonitor.WordWrap = false;
+            this.txtMonitor.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.txtMonitor_KeyPress);
             // 
-            // btnQSOforPage
-            // 
-            this.btnQSOforPage.Location = new System.Drawing.Point(11, 89);
-            this.btnQSOforPage.Name = "btnQSOforPage";
-            this.btnQSOforPage.Size = new System.Drawing.Size(91, 31);
-            this.btnQSOforPage.TabIndex = 24;
-            this.btnQSOforPage.Text = "QSO for page";
-            this.btnQSOforPage.UseVisualStyleBackColor = true;
-            this.btnQSOforPage.Click += new System.EventHandler(this.btnQSOforPage_Click);
-            // 
-            // frmTest
+            // frmMain
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
@@ -494,9 +496,10 @@ namespace QRZTestApp
             this.Controls.Add(this.splitContainer1);
             this.KeyPreview = true;
             this.MinimumSize = new System.Drawing.Size(956, 726);
-            this.Name = "frmTest";
+            this.Name = "frmMain";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "QRZ Console (1.0.0-beta)";
+            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.frmMain_FormClosing);
             this.Load += new System.EventHandler(this.Form1_Load);
             this.KeyDown += new System.Windows.Forms.KeyEventHandler(this.frmTest_KeyDown);
             this.splitContainer1.Panel1.ResumeLayout(false);
