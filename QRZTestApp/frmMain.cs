@@ -14,7 +14,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Winsock_Orcas;
 
-namespace QRZTestApp
+namespace QRZConsole
 {
     public partial class frmMain : Form
     {
@@ -73,9 +73,11 @@ namespace QRZTestApp
 
         private void IsLoggedInLastStatus()
         {
-            string lastStatus = GetRegKeyValue("IsLoggedIn");
-            addMonitor($"IsLogged (last status) = {(lastStatus=="1").ToString()}");
-
+            bool loggedin = (GetRegKeyValue("IsLoggedIn") == "1");
+            if (loggedin)
+                addMonitor($"IsLogged (last status) = {loggedin.ToString()} by [{txtUsername.Text}]");
+            else
+                addMonitor($"IsLogged (last status) = {loggedin.ToString()}");
         }
 
         private void btnLogOut_Click(object sender, EventArgs e)
@@ -85,10 +87,27 @@ namespace QRZTestApp
 
         private void LogOut()
         {
-            addMonitor($"Start Log Out...");
-            bool lo = qrz.LogOut();
-            addMonitor($"Logout = {lo.ToString()}");
-            SaveRegKey("IsLoggedIn", "0");
+            if (GetRegKeyValue("IsLoggedIn") != "1")
+            {
+                addMonitor($"Warning! IsLogged (last status) = False");
+                addMonitor($"Before Logout start IsLogged request with il command]");
+            }
+            else
+            {
+                addMonitor($"Start Log Out...");
+                bool lo = qrz.LogOut();
+                addMonitor($"Logout = {lo.ToString()}");
+                if (lo)
+                {
+                    SaveRegKey("IsLoggedIn", "0");
+                    txtUsername.Text = string.Empty;
+                    txtPassword.Text = string.Empty;
+                    qrz.Qrz = string.Empty;
+                    qrz.Password = string.Empty;
+                    SaveRegKey("username", qrz.Qrz);
+                    SaveRegKey("password", qrz.Password);
+                }
+            }
         }
 
         private void btnQRZHome_Click(object sender, EventArgs e)
@@ -122,32 +141,43 @@ namespace QRZTestApp
 
         private void Login(string prm1 = "", string prm2 = "")
         {
-            if (prm1 != "")
-                qrz.Qrz = prm1;
-
-            if (prm2 != "")
-                qrz.Password = prm2;
-
-            if (qrz.Qrz != "" && qrz.Password != "")
+            if (GetRegKeyValue("IsLoggedIn")=="1")
             {
-                SaveRegKey("username", qrz.Qrz);
-                SaveRegKey("password", qrz.Password);
-
-                addMonitor($"Login... QRZ=[{qrz.Qrz}] - Password=[{new string('*', qrz.Password.Length)}]");
-
-                string errorMessage = string.Empty;
-                bool logged = qrz.Login(out errorMessage);
-                if (logged)
-                {
-                    SaveRegKey("IsLoggedIn", "1");
-                    addMonitor($"Logged in QRZ=[{qrz.Qrz}]");
-                }
-                else
-                    addMonitor(errorMessage);
+                addMonitor($"Warning! IsLogged (last status) = True by [{GetRegKeyValue("username")}]");
+                addMonitor($"Before new Login start IsLogged request with il command]");
             }
             else
             {
-                addMonitor($"Unable to Login: username and password are required fields!");
+                if (prm1 != "")
+                    qrz.Qrz = prm1.ToUpper();
+
+                if (prm2 != "")
+                    qrz.Password = prm2;
+
+                if (qrz.Qrz != "" && qrz.Password != "")
+                {
+                    SaveRegKey("username", qrz.Qrz);
+                    SaveRegKey("password", qrz.Password);
+
+                    txtUsername.Text = qrz.Qrz;
+                    txtPassword.Text = qrz.Password;
+
+                    addMonitor($"Login... QRZ=[{qrz.Qrz}] - Password=[{new string('*', qrz.Password.Length)}]");
+
+                    string errorMessage = string.Empty;
+                    bool logged = qrz.Login(out errorMessage);
+                    if (logged)
+                    {
+                        SaveRegKey("IsLoggedIn", "1");
+                        addMonitor($"Logged in QRZ=[{qrz.Qrz}]");
+                    }
+                    else
+                        addMonitor(errorMessage);
+                }
+                else
+                {
+                    addMonitor($"Unable to Login: username and password are required fields!");
+                }
             }
         }
 
@@ -174,6 +204,7 @@ namespace QRZTestApp
             if (QRZtoSearch != "")
             {
                 SaveRegKey("lookup", QRZtoSearch);
+                txtQRZLookup.Text = QRZtoSearch;
 
                 addMonitor("");
                 addMonitor($"Lookup {QRZtoSearch}...");
@@ -274,19 +305,28 @@ namespace QRZTestApp
                 txtLogbookPage.Text = currentPage.ToString();
         }
 
-        private void Form1_Load(object sender, EventArgs e)
+        private void frmMain_Load(object sender, EventArgs e)
         {
+            this.Text = $"{Application.ProductName} v.{System.Windows.Forms.Application.ProductVersion}-beta";
+
             txtUsername.Text = GetRegKeyValue("username");
             txtPassword.Text = GetRegKeyValue("password");
             txtQRZLookup.Text = GetRegKeyValue("lookup");
+            lastQRZ = txtQRZLookup.Text;
+
             this.Show();
 
             chkIsLogged.Checked = (GetRegKeyValue("CheckIsLoggedIn") == "1");
+
+            addMonitor($"Welcome to {this.Text}");
+            addMonitor("");
 
             if (chkIsLogged.Checked)
                 IsLogged();
             else
                 IsLoggedInLastStatus();
+
+            addMonitor("");
 
             chkShowHeader.Checked = (GetRegKeyValue("ShowHeader") == "1");
 
@@ -371,14 +411,14 @@ namespace QRZTestApp
 
         private void GetQSObyRangeTextView(int start, int end)
         {
-            addMonitor($"Get QSOs by range: from position {start} to {end}... ");
+            addMonitor($"Get QSOs by range (Text View): from position {start} to {end}... ");
 
             List<LogbookEntry> lbentries = qrz.GetLogbookEntriesByRange(start, end);
             if (lbentries != null)
             {
                 if (lbentries.Count > 0)
                 {
-                    string headerLine = new string('-', 217);
+                    string headerLine = new string('-', 223);
                     addMonitor("");
                     addMonitor(headerLine);
 
@@ -396,8 +436,6 @@ namespace QRZTestApp
                     headerText += " | ";
                     headerText += GetFixedString("Mode", 6);
                     headerText += " | ";
-                    headerText += "QSL";
-                    headerText += " | ";
                     headerText += GetFixedString("GridLoc", 8);
                     headerText += " | ";
                     headerText += GetFixedString("Country", 20);
@@ -406,6 +444,8 @@ namespace QRZTestApp
                     headerText += " | ";
                     headerText += GetFixedString("Comments", 50);
                     headerText += " |";
+                    headerText += "Confirmed";
+                    headerText += " | ";
                     addMonitor(headerText);
                     addMonitor(headerLine);
 
@@ -425,8 +465,6 @@ namespace QRZTestApp
                         rowText += " | ";
                         rowText += GetFixedString(entry.Mode, 6);
                         rowText += " | ";
-                        rowText += entry.Confirmed ? " * " : "   ";
-                        rowText += " | ";
                         rowText += GetFixedString(entry.GridLocator, 8);
                         rowText += " | ";
                         rowText += GetFixedString(entry.Country, 20);
@@ -435,10 +473,80 @@ namespace QRZTestApp
                         rowText += " | ";
                         rowText += GetFixedString(entry.Comments, 50);
                         rowText += " |";
+                        rowText += entry.Confirmed ? "    *    " : "         ";
+                        rowText += " | ";
                         addMonitor(rowText);
                     }
                     addMonitor(headerLine);
 
+                }
+                else
+                    addMonitor("Found 0 entries");
+            }
+        }
+
+
+        private void GetQSObyRangeTextRaw(int start, int end)
+        {
+            addMonitor($"Get QSOs by range (Text Raw): from position {start} to {end}... ");
+
+            List<LogbookEntry> lbentries = qrz.GetLogbookEntriesByRange(start, end);
+            if (lbentries != null)
+            {
+                if (lbentries.Count > 0)
+                {
+
+                    string headerText = "";
+                    headerText += "Num.";
+                    headerText += "\t";
+                    headerText += "Date Time";
+                    headerText += "\t";
+                    headerText += "Call";
+                    headerText += "\t";
+                    headerText += "Band";
+                    headerText += "\t";
+                    headerText += "Frequency";
+                    headerText += "\t";
+                    headerText += "Mode";
+                    headerText += "\t";
+                    headerText += "GridLocator";
+                    headerText += "\t";
+                    headerText += "Country";
+                    headerText += "\t";
+                    headerText += "Operator Name";
+                    headerText += "\t";
+                    headerText += "Comments";
+                    headerText += "\t";
+                    headerText += "Confirmed";
+                    addMonitor(headerText);
+
+                    foreach (LogbookEntry entry in lbentries)
+                    {
+                        string rowText = "";
+                        rowText += entry.position;
+                        rowText += "\t";
+                        rowText += entry.QSODateTime.ToString("yyyy-MM-dd HH:mm");
+                        rowText += "\t";
+                        rowText += entry.Call;
+                        rowText += "\t";
+                        rowText += entry.Band;
+                        rowText += "\t";
+                        rowText += entry.Frequency;
+                        rowText += "\t";
+                        rowText += entry.Mode;
+                        rowText += "\t";
+                        rowText += entry.GridLocator;
+                        rowText += "\t";
+                        rowText += entry.Country;
+                        rowText += "\t";
+                        rowText += entry.OperatorName;
+                        rowText += "\t";
+                        rowText += entry.Comments;
+                        rowText += "\t";
+                        rowText += entry.Confirmed ? "*" : "";
+                        addMonitor(rowText);
+                    }
+                    addMonitor("");
                 }
                 else
                     addMonitor("Found 0 entries");
@@ -716,8 +824,14 @@ namespace QRZTestApp
                     case "cm":
                         CommandList();
                         break;
+                    case "sl":
+                        ShortcutList();
+                        break;
                     case "il":
                         IsLogged();
+                        break;
+                    case "ls":
+                        IsLoggedInLastStatus();
                         break;
                     case "li":
                         Login(prm1, prm2);
@@ -783,6 +897,9 @@ namespace QRZTestApp
                         break;
                     case "qt":
                         GetQSObyRangeTextView(iprm1, iprm2);
+                        break;
+                    case "qr":
+                        GetQSObyRangeTextRaw(iprm1, iprm2);
                         break;
                     case "cl":
                         ClearMonitor();
@@ -877,6 +994,23 @@ namespace QRZTestApp
             CommandList();
         }
 
+        private void ShortcutList()
+        {
+            int cmdlen = 40;
+            addMonitor($"Shortcut List");
+            addMonitor($"-------------------------------------------------------------------------");
+            addMonitor(GetFixedString($"  Description", cmdlen) + "Keys...");
+            addMonitor($"-------------------------------------------------------------------------");
+            addMonitor("View:");
+            addMonitor(GetFixedString($"  Zoom in", cmdlen) + "CTRL++");
+            addMonitor(GetFixedString($"  Zoom out", cmdlen) + "CTRL+-");
+            addMonitor(GetFixedString($"  Zoom reset", cmdlen) + "CTRL+0");
+            addMonitor("Behaviors:");
+            addMonitor(GetFixedString($"  Set the cursor in the command field", cmdlen) + "F2");
+            addMonitor($"-------------------------------------------------------------------------");
+
+        }
+
         private void CommandList()
         {
             int cmdlen = 40;
@@ -886,6 +1020,7 @@ namespace QRZTestApp
             addMonitor($"-------------------------------------------------------------------------");
             addMonitor("Credentials:");
             addMonitor(GetFixedString($"  Is Logged", cmdlen) + "il");
+            addMonitor(GetFixedString($"  Is Logged (last status)", cmdlen) + "ls");
             addMonitor(GetFixedString($"  Login", cmdlen) + "li [username] [password]");
             addMonitor(GetFixedString($"  LogOut", cmdlen) + "lo");
             addMonitor("Search:");
@@ -906,17 +1041,19 @@ namespace QRZTestApp
             addMonitor(GetFixedString($"  Get Table Contente Text", cmdlen) + "tt [page]");
             addMonitor(GetFixedString($"  Get Table Contente Raw", cmdlen) + "tr [page]");
             addMonitor(GetFixedString($"  Get Table Content XML", cmdlen) + "tx [page]");
-            addMonitor(GetFixedString($"  Get QSOs by range Text", cmdlen) + "qt [start Page] [end Page]");
+            addMonitor(GetFixedString($"  Get QSOs by range Text View", cmdlen) + "qt [start position] [end position]");
+            addMonitor(GetFixedString($"  Get QSOs by range Text Raw", cmdlen) + "qr [start position] [end position]");
             addMonitor("Cluster DX:");
             addMonitor(GetFixedString($"  Open Cluster DX", cmdlen) + "dx");
-            addMonitor(GetFixedString($"  Show DX on", cmdlen) + "sb [band] [items]");
-            addMonitor(GetFixedString($"  DXSpider command", cmdlen) + "dc [DXSpider command ]");
+            addMonitor(GetFixedString($"  Show DX on", cmdlen) + "sb [band] [items] (band example: [40m] [10m] or [hf] [vhf] [uhf])");
+            addMonitor(GetFixedString($"  DXSpider command", cmdlen) + "dc [DXSpider command: http://www.dxcluster.org/main/usermanual_en-12.html]");
             addMonitor("General:");
             addMonitor(GetFixedString($"  Clear Monitor", cmdlen) + "cl");
             addMonitor(GetFixedString($"  Switch View", cmdlen) + "sw");
             addMonitor(GetFixedString($"  Switch Check Is Logged at startup", cmdlen) + "sc");
             addMonitor(GetFixedString($"  Switch screen (normal/fullsize)", cmdlen) + "fs");
             addMonitor(GetFixedString($"  Command List", cmdlen) + "cm");
+            addMonitor(GetFixedString($"  Shortcut List", cmdlen) + "sl");
             addMonitor(GetFixedString($"  Quit", cmdlen) + "qi");
             addMonitor($"-------------------------------------------------------------------------");
         }
@@ -1097,28 +1234,35 @@ namespace QRZTestApp
                 Send($"{cmd}");
             }
         }
+
         private void ClusterDxOpen(string usrename = "", string passowrd = "")
         {
-            
-            if (ws == null)
+
+            if (txtUsername.Text != "")
             {
-                ws = new Winsock();
-                ws.LegacySupport = true;
+                if (ws == null)
+                {
+                    ws = new Winsock();
+                    ws.LegacySupport = true;
 
-                ws.Connected += Ws_Connected;
-                ws.ErrorReceived += Ws_ErrorReceived;
-                ws.Disconnected += Ws_Disconnected;
-                ws.DataArrival += Ws_DataArrival;
-                ws.SendComplete += Ws_SendComplete;
+                    ws.Connected += Ws_Connected;
+                    ws.ErrorReceived += Ws_ErrorReceived;
+                    ws.Disconnected += Ws_Disconnected;
+                    ws.DataArrival += Ws_DataArrival;
+                    ws.SendComplete += Ws_SendComplete;
 
+                }
+                if (ws.State != WinsockStates.Connected)
+                {
+                    ws.Connect(ClusterAddr, ClusterPort);
+                }
+
+                if (clusterConnected)
+                    addMonitor("Cluster already connected");
             }
-            if (ws.State != WinsockStates.Connected)
-            {
-                ws.Connect(ClusterAddr, ClusterPort);
-            }
+            else
+                addMonitor("Please! Befor connect Cluster DX Login in QRZ.com using: li [username] [password] command");
 
-            if (clusterConnected)
-                addMonitor("Cluster already connected");
 
         }
 

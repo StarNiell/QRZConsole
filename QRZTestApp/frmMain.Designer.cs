@@ -1,5 +1,5 @@
 ﻿
-namespace QRZTestApp
+namespace QRZConsole
 {
     partial class frmMain
     {
@@ -498,9 +498,9 @@ namespace QRZTestApp
             this.MinimumSize = new System.Drawing.Size(956, 726);
             this.Name = "frmMain";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.Text = "QRZ Console (1.0.0-beta)";
+            this.Text = "QRZ Console";
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.frmMain_FormClosing);
-            this.Load += new System.EventHandler(this.Form1_Load);
+            this.Load += new System.EventHandler(this.frmMain_Load);
             this.KeyDown += new System.Windows.Forms.KeyEventHandler(this.frmTest_KeyDown);
             this.splitContainer1.Panel1.ResumeLayout(false);
             this.splitContainer1.Panel1.PerformLayout();
