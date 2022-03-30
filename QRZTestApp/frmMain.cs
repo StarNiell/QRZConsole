@@ -31,6 +31,7 @@ namespace QRZConsole
         private bool ClusterDebug = false;
         string ClusterDXprompt = "ClusterDX>";
         private bool clusterConnected = false;
+        private int clusterDxItems = 30;
 
         private int splitterExpand = 225;
         private int splittercompress = 25;
@@ -104,12 +105,19 @@ namespace QRZConsole
                 if (lo)
                 {
                     SaveRegKey("IsLoggedIn", "0");
+
                     txtUsername.Text = string.Empty;
                     txtPassword.Text = string.Empty;
+                    txtQRZLookup.Text = string.Empty;
+                    txtLogbookPage.Text = "1";
+
                     qrz.Qrz = string.Empty;
                     qrz.Password = string.Empty;
+                    
                     SaveRegKey("username", qrz.Qrz);
                     SaveRegKey("password", qrz.Password);
+                    SaveRegKey("lookup", string.Empty);
+
                 }
             }
         }
@@ -335,6 +343,8 @@ namespace QRZConsole
 
             addMonitor($"Welcome to {this.Text}");
             addMonitor("");
+            addMonitor($"This program require Microsoft Windows EDGE Browser (pre-installed since Windows 8.1)");
+            addMonitor("");
 
             if (chkIsLogged.Checked)
                 IsLogged();
@@ -377,14 +387,14 @@ namespace QRZConsole
                 }
                 else
                 {
-                    addMonitor($"Set current View Mode: {mode}");
+                    addMonitor($"Set current Logbook View Mode: {mode}");
                     SaveRegKey("currentViewMode", mode.ToLower());
                     currentViewMode = mode;
                 }
             }
             else
             {
-                addMonitor($"Current View Mode is: {currentViewMode}");
+                addMonitor($"Current Logbook View Mode is: {currentViewMode}");
             }
         }
 
@@ -853,18 +863,21 @@ namespace QRZConsole
 
                 string prm1 = string.Empty;
                 string prm2 = string.Empty;
+                string prm3 = string.Empty;
                 if (command.IndexOf(" ") > 0)
                 {
                     if (command.Split(" ".ToCharArray()[0]).Length > 1)
                         prm1 = command.Split(" ".ToCharArray()[0])[1];
                     if (command.Split(" ".ToCharArray()[0]).Length > 2)
                         prm2 = command.Split(" ".ToCharArray()[0])[2];
+                    if (command.Split(" ".ToCharArray()[0]).Length > 3)
+                        prm3 = command.Split(" ".ToCharArray()[0])[3];
                 }
+
+                cmd = cmd.ToLower();
 
                 addMonitor("");
                 addMonitor($">{command}");
-                
-                cmd = cmd.ToLower();
 
                 int iprm1 = 0;
                 if (int.TryParse(prm1, out int tmp1))
@@ -873,6 +886,10 @@ namespace QRZConsole
                 int iprm2 = 0;
                 if (int.TryParse(prm2, out int tmp2))
                     iprm2 = tmp2;
+
+                int iprm3 = 0;
+                if (int.TryParse(prm2, out int tmp3))
+                    iprm3 = tmp3;
 
                 switch (cmd)
                 {
@@ -974,8 +991,25 @@ namespace QRZConsole
                     case "dx":
                         ClusterDxOpen(prm1, prm2);
                         break;
+                    case "cc":
+                        ClusterDxClose();
+                        break;
+                    case "ss":
+                        if (prm3 != string.Empty)
+                        {
+                            string tmp = (cmd + " " + prm1 + " " + prm2 + " ");
+                            prm3 = command.Substring(tmp.Length, (command.Length - tmp.Length));
+                        }
+                        ClusterDxSendSpot(prm1, prm2, prm3);
+                        break;
                     case "sb":
                         ClusterDxSelectBand(prm1, iprm2);
+                        break;
+                    case "di":
+                        ClusterDxItems(iprm1);
+                        break;
+                    case "cd":
+                        ClusterDebugSwitch();
                         break;
                     case "dc":
                         ClusterDxCmd(command);
@@ -1032,7 +1066,7 @@ namespace QRZConsole
                 splitContainer1.SplitterDistance = splitterExpand;
                 btnSwitchView.Text = "-";
             }
-            addMonitor($"View switched{extra}");
+            addMonitor($"Console View switched{extra}");
         }
 
         private void resetSplitter()
@@ -1106,6 +1140,8 @@ namespace QRZConsole
             addMonitor(GetFixedString($"  Open Cluster DX", cmdlen) + "dx");
             addMonitor(GetFixedString($"  Show DX on", cmdlen) + "sb [band] [items] (band example: [40m] [10m] or [hf] [vhf] [uhf])");
             addMonitor(GetFixedString($"  DXSpider command", cmdlen) + "dc [DXSpider command: http://www.dxcluster.org/main/usermanual_en-12.html]");
+            addMonitor(GetFixedString($"  Send Spot", cmdlen) + "ss [call] [freq] [comment]");
+            addMonitor(GetFixedString($"  Close Cluster DX", cmdlen) + "cc");
             addMonitor("General:");
             addMonitor(GetFixedString($"  Clear Monitor", cmdlen) + "cl");
             addMonitor(GetFixedString($"  Switch View", cmdlen) + "sw");
@@ -1166,6 +1202,8 @@ namespace QRZConsole
                 splittercompress = 25;
                 btnSwitchView.Height = 20;
                 btnSwitchView.Width = 20;
+                btnSwitchView.Top = txtCommand.Top;
+                btnSwitchView.Left = txtCommand.Width - 20;
                 resetSplitter();
             }
 
@@ -1235,14 +1273,14 @@ namespace QRZConsole
 
             dataArrival = dataArrival.Replace($"{ClusterDXprompt}\r\n", string.Empty);
 
-            if (dataArrival != string.Empty && clusterConnected)
+            if (dataArrival != string.Empty && (clusterConnected || ClusterDebug))
             {
                 addMonitor(dataArrival, false);
             }
 
             if (!clusterConnected)
             {
-                clusterConnected = (dataArrival.IndexOf("WX disabled for ") > 0);
+                clusterConnected = (dataArrival.IndexOf("WX disabled for ") >= 0);
                 if (clusterConnected)
                     addMonitor("Cluster DX Logged ln");
             }
@@ -1267,6 +1305,17 @@ namespace QRZConsole
             LoginClusterDX();
         }
 
+        private void ClusterDxItems(int items)
+        {
+            if (items > 0)
+            {
+                clusterDxItems = items;
+                addMonitor($"Set Items result for Clusterd DX: {items}");
+            }
+            else
+                addMonitor($"Invalid Items value for Clusterd DX. items: the number must be greater than 0");
+        }
+
         private void ClusterDxSelectBand(string band, int items = 0)
         {
             if (!clusterConnected)
@@ -1276,9 +1325,18 @@ namespace QRZConsole
             else
             {
                 if (items == 0)
-                    items = 20;
-                Send($"show/dx {items} on {band}");
+                    items = clusterDxItems;
+                if (band != "")
+                    Send($"show/dx {items} on {band}");
+                else
+                    Send($"show/dx {items}");
             }
+        }
+
+        private void ClusterDebugSwitch()
+        {
+            ClusterDebug = !ClusterDebug;
+            addMonitor($"Cluster Debug active: {ClusterDebug.ToString()}");
         }
 
         private void ClusterDxCmd(string command)
@@ -1291,6 +1349,33 @@ namespace QRZConsole
             {
                 string cmd = command.Substring(3, command.Length - 3);
                 Send($"{cmd}");
+            }
+        }
+
+        private void ClusterDxClose()
+        {
+            if (ws.State == WinsockStates.Connected)
+            {
+                addMonitor("Disconnecting Cluster DX....");
+                ws.Close();
+            }
+        }
+
+        private void ClusterDxSendSpot(string qrzToSpot, string freq, string comment)
+        {
+            if (!clusterConnected)
+            {
+                addMonitor("Cluster DX not available. Digit dx for login Cluster DX");
+            }
+            else
+            {
+                if (qrzToSpot != "" && freq != "")
+                {
+                    addMonitor($"Send spot to {qrzToSpot} on freq {freq}");
+                    Send($"DX {qrzToSpot} {freq} {comment}");
+                }
+                else
+                    addMonitor($"Invalid Spot command for Cluster DX!");
             }
         }
 
@@ -1330,17 +1415,27 @@ namespace QRZConsole
 
             addMonitor("Login Cluster DX...");
             Send(txtUsername.Text);
+            Thread.Sleep(50);
             Send($"set/prompt {ClusterDXprompt}");
+            Thread.Sleep(50);
             Send($"unset/echo");
+            Thread.Sleep(50);
             //SendWSCommandByQueue($"set/qth {City} {StateProv}, {Country}");
+            //Thread.Sleep(50);
             Send("unset/announce");
+            Thread.Sleep(50);
             Send("unset/anntalk");
+            Thread.Sleep(50);
             Send("unset/dx");
+            Thread.Sleep(50);
             Send("unset/talk");
+            Thread.Sleep(50);
             Send("unset/wcy");
+            Thread.Sleep(50);
             Send("unset/wwv");
+            Thread.Sleep(50);
             Send("unset/wx");
-            //Send($"show/dx 50 on 40m");
+            Thread.Sleep(50);
 
         }
 
