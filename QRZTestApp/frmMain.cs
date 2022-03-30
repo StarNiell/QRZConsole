@@ -22,6 +22,7 @@ namespace QRZConsole
 
         private delegate void SafeCallDelegate(string log, bool appendNewLine);
         private string lastQRZ = string.Empty;
+        private string currentViewMode = "raw";
 
         private Winsock ws;
 
@@ -67,7 +68,10 @@ namespace QRZConsole
         {
             addMonitor($"Start IsLogged request...");
             bool il = qrz.IsLogged();
-            addMonitor($"IsLogged = {il.ToString()}");
+            if (il)
+                addMonitor($"IsLogged = {il.ToString()} by [{txtUsername.Text}]");
+            else
+                addMonitor($"IsLogged = {il.ToString()}");
             SaveRegKey("IsLoggedIn",  il?"1":"0");
         }
 
@@ -130,6 +134,15 @@ namespace QRZConsole
         {
             addMonitor($"Load Logbook...");
             addMonitor($"Load Logbook = {qrz.GotoLogbook()}");
+
+            int page = 1;
+            if (int.TryParse(txtLogbookPage.Text, out int tmp))
+                page = tmp;
+
+            if (currentViewMode == "raw")
+                GetTableContenteRawView(page);
+            else
+                GetTableContentTextView(page);
         }
 
         private void btnLogin_Click(object sender, EventArgs e)
@@ -313,6 +326,8 @@ namespace QRZConsole
             txtPassword.Text = GetRegKeyValue("password");
             txtQRZLookup.Text = GetRegKeyValue("lookup");
             lastQRZ = txtQRZLookup.Text;
+            if (!string.IsNullOrEmpty(GetRegKeyValue("currentViewMode")))
+                currentViewMode = GetRegKeyValue("currentViewMode");
 
             this.Show();
 
@@ -325,6 +340,10 @@ namespace QRZConsole
                 IsLogged();
             else
                 IsLoggedInLastStatus();
+
+            addMonitor("");
+
+            SetCurrentViewMode("");
 
             addMonitor("");
 
@@ -348,12 +367,42 @@ namespace QRZConsole
             GotoPage(page);
         }
 
+        private void SetCurrentViewMode(string mode = "")
+        {
+            if (mode != "")
+            {
+                if ((mode.ToUpper() != "RAW") && (mode.ToUpper() != "TEXT"))
+                {
+                    addMonitor($"Invalid View Mode! (mode is [raw] or [text])");
+                }
+                else
+                {
+                    addMonitor($"Set current View Mode: {mode}");
+                    SaveRegKey("currentViewMode", mode.ToLower());
+                    currentViewMode = mode;
+                }
+            }
+            else
+            {
+                addMonitor($"Current View Mode is: {currentViewMode}");
+            }
+        }
+
         private void GotoPage(int page)
         {
             addMonitor($"Goto Page {page}... ");
             int currentPage = qrz.GotoLoogbookPage(page);
             addMonitor($"Current Page = {currentPage}");
             txtLogbookPage.Text = currentPage.ToString();
+
+            if (currentPage > 0)
+            {
+                if (currentViewMode == "raw")
+                    GetTableContenteRawView(currentPage);
+                else
+                    GetTableContentTextView(currentPage);
+            }
+
         }
 
         private void btnGetTableContentRaw_Click(object sender, EventArgs e)
@@ -411,6 +460,9 @@ namespace QRZConsole
 
         private void GetQSObyRangeTextView(int start, int end)
         {
+            if (end == 0)
+                end = start;
+
             addMonitor($"Get QSOs by range (Text View): from position {start} to {end}... ");
 
             List<LogbookEntry> lbentries = qrz.GetLogbookEntriesByRange(start, end);
@@ -488,6 +540,9 @@ namespace QRZConsole
 
         private void GetQSObyRangeTextRaw(int start, int end)
         {
+            if (end == 0)
+                end = start;
+
             addMonitor($"Get QSOs by range (Text Raw): from position {start} to {end}... ");
 
             List<LogbookEntry> lbentries = qrz.GetLogbookEntriesByRange(start, end);
@@ -868,6 +923,9 @@ namespace QRZConsole
                     case "lp":
                         LogbookPages();
                         break;
+                    case "cv":
+                        SetCurrentViewMode(prm1);
+                        break;
                     case "gp":
                         GotoPage(iprm1);
                         break;
@@ -1025,13 +1083,14 @@ namespace QRZConsole
             addMonitor(GetFixedString($"  LogOut", cmdlen) + "lo");
             addMonitor("Search:");
             addMonitor(GetFixedString($"  Lookup", cmdlen) + "lu [qrz]");
-            addMonitor(GetFixedString($"  Check Worked", cmdlen) + "gw [qrz]");
+            addMonitor(GetFixedString($"  Check Worked", cmdlen) + "cw [qrz]");
             addMonitor(GetFixedString($"  Lookup and Check Worked", cmdlen) + "lw [qrz]");
             addMonitor(GetFixedString($"  Check Worked and Lookup", cmdlen) + "wl [qrz]");
             addMonitor("Logbook:");
             addMonitor(GetFixedString($"  QSO Count", cmdlen) + "qc");
             addMonitor(GetFixedString($"  Logbook pages", cmdlen) + "lp");
             addMonitor(GetFixedString($"  QSO for page", cmdlen) + "qp");
+            addMonitor(GetFixedString($"  Get/Set current view mode", cmdlen) + "cv [mode] (mode: [raw] or [text)");
             addMonitor(GetFixedString($"  Goto Page", cmdlen) + "gp [page]");
             addMonitor(GetFixedString($"  Page Down", cmdlen) + "pd");
             addMonitor(GetFixedString($"  Page Up", cmdlen) + "pu");
