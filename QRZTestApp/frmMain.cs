@@ -321,7 +321,13 @@ namespace QRZConsole
         {
             addMonitor($"Get Current Loogbook Page... ");
             int currentPage = qrz.GetCurrentLogbookPage();
-            addMonitor($"Current Loogbook Page = {currentPage}");
+            if (currentPage <= 0)
+            {
+                addMonitor($"Unable to get Current Loogbook Page! Are you logged in?");
+            }
+            else
+                addMonitor($"Current Loogbook Page = {currentPage}");
+
             if (currentPage > 0)
                 txtLogbookPage.Text = currentPage.ToString();
         }
@@ -340,10 +346,23 @@ namespace QRZConsole
             this.Show();
 
             chkIsLogged.Checked = (GetRegKeyValue("CheckIsLoggedIn") == "1");
+            addMonitor("************************************************************************************************************************");
 
             addMonitor($"Welcome to {this.Text}");
             addMonitor("");
+            addMonitor($"QRZ Console is a \"unofficial command-line interface\" to the QRZ.COM website and require a personal account.\r\nFor more information about the website, go to: https://www.qrz.com");
+            addMonitor("");
             addMonitor($"This program require Microsoft Windows EDGE Browser (pre-installed since Windows 8.1)");
+            addMonitor("");
+
+            SetCurrentViewMode("");
+            addMonitor("");
+            chkShowHeader.Checked = (GetRegKeyValue("ShowHeader") == "1");
+
+            if (!chkShowHeader.Checked)
+                SwitchView();
+
+            addMonitor("************************************************************************************************************************");
             addMonitor("");
 
             if (chkIsLogged.Checked)
@@ -352,17 +371,7 @@ namespace QRZConsole
                 IsLoggedInLastStatus();
 
             addMonitor("");
-
-            SetCurrentViewMode("");
-
-            addMonitor("");
-
-            chkShowHeader.Checked = (GetRegKeyValue("ShowHeader") == "1");
-
-            if (!chkShowHeader.Checked)
-                SwitchView();
-
-            txtCommand.Text = "insert command here (digit cm and press ENTER for Command List)";
+            txtCommand.Text = "insert command here (enter \"cm\" and press ENTER key for Command List)";
             txtCommand.SelectAll();
             txtCommand.Focus();
         }
@@ -798,6 +807,23 @@ namespace QRZConsole
             addMonitor($"QSO for page = {qrz.GetEntriesForPage()}");
         }
 
+        private void SetEntriesForPage(int entries)
+        {
+            addMonitor($"Set QSO for page to {entries}... ");
+            string msg = string.Empty;
+            int ret = qrz.SetEntriesForPage(entries, out msg);
+
+            if (!string.IsNullOrEmpty(msg))
+                addMonitor(msg);
+            else
+            {
+                if (ret == entries)
+                    addMonitor($"QSO for page = {entries}");
+                else
+                    addMonitor($"Unable to set QSO for page = {entries}");
+            }
+        }
+
         private void btnOrderDateDesc_Click(object sender, EventArgs e)
         {
             OrderDateDesc();
@@ -935,7 +961,10 @@ namespace QRZConsole
                         QSOCount();
                         break;
                     case "qp":
-                        GetEntriesForPage();
+                        if (iprm1 > 0)
+                            SetEntriesForPage(iprm1);
+                        else
+                            GetEntriesForPage();
                         break;
                     case "lp":
                         LogbookPages();
@@ -1004,6 +1033,9 @@ namespace QRZConsole
                         break;
                     case "sb":
                         ClusterDxSelectBand(prm1, iprm2);
+                        break;
+                    case "ds":
+                        ClusterDxSearchCallsign(prm1);
                         break;
                     case "di":
                         ClusterDxItems(iprm1);
@@ -1121,9 +1153,10 @@ namespace QRZConsole
             addMonitor(GetFixedString($"  Lookup and Check Worked", cmdlen) + "lw [qrz]");
             addMonitor(GetFixedString($"  Check Worked and Lookup", cmdlen) + "wl [qrz]");
             addMonitor("Logbook:");
+            addMonitor(GetFixedString($"  Open Logbook", cmdlen) + "lb");
             addMonitor(GetFixedString($"  QSO Count", cmdlen) + "qc");
             addMonitor(GetFixedString($"  Logbook pages", cmdlen) + "lp");
-            addMonitor(GetFixedString($"  QSO for page", cmdlen) + "qp");
+            addMonitor(GetFixedString($"  Get/Set QSO for page", cmdlen) + "qp [entries] (valid values: 5, 10, 15, 20, 25, 50, 100, 200)");
             addMonitor(GetFixedString($"  Get/Set current view mode", cmdlen) + "cv [mode] (mode: [raw] or [text)");
             addMonitor(GetFixedString($"  Goto Page", cmdlen) + "gp [page]");
             addMonitor(GetFixedString($"  Page Down", cmdlen) + "pd");
@@ -1139,6 +1172,7 @@ namespace QRZConsole
             addMonitor("Cluster DX:");
             addMonitor(GetFixedString($"  Open Cluster DX", cmdlen) + "dx");
             addMonitor(GetFixedString($"  Show DX on", cmdlen) + "sb [band] [items] (band example: [40m] [10m] or [hf] [vhf] [uhf])");
+            addMonitor(GetFixedString($"  Search Callsign on Cluster DX", cmdlen) + "ds [callsign]");
             addMonitor(GetFixedString($"  DXSpider command", cmdlen) + "dc [DXSpider command: http://www.dxcluster.org/main/usermanual_en-12.html]");
             addMonitor(GetFixedString($"  Send Spot", cmdlen) + "ss [call] [freq] [comment]");
             addMonitor(GetFixedString($"  Close Cluster DX", cmdlen) + "cc");
@@ -1316,6 +1350,18 @@ namespace QRZConsole
                 addMonitor($"Invalid Items value for Clusterd DX. items: the number must be greater than 0");
         }
 
+        private void ClusterDxSearchCallsign(string callsing)
+        {
+            if (!clusterConnected)
+            {
+                addMonitor("Cluster DX not available. Digit dx for login Cluster DX");
+            }
+            else
+            {
+                Send($"show/dx {callsing}");
+            }
+        }
+
         private void ClusterDxSelectBand(string band, int items = 0)
         {
             if (!clusterConnected)
@@ -1347,8 +1393,13 @@ namespace QRZConsole
             }
             else
             {
-                string cmd = command.Substring(3, command.Length - 3);
-                Send($"{cmd}");
+                if (command.Length > 3)
+                {
+                    string cmd = command.Substring(3, command.Length - 3);
+                    Send($"{cmd}");
+                }
+                else
+                    addMonitor("Invalid DXSpider command!");
             }
         }
 
