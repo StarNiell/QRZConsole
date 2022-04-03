@@ -30,6 +30,9 @@ namespace QRZLibrary
         private string _loginPage = "/login";
         private long _pageLoadTimeOut = 30000;
         private int _cpuSleep = 50;
+        private string lastCompletePageLoad = string.Empty;
+        private List<BandFrequencyRange> bandFrequenciesRange;
+        private List<string> modes;
 
         public string Qrz { get => _qrz; set => _qrz = value; }
         public string Password { get => _password; set => _password = value; }
@@ -47,21 +50,25 @@ namespace QRZLibrary
             wb = new WebBrowser();
             wb.ScriptErrorsSuppressed = true;
             wb.DocumentCompleted += Wb_DocumentCompleted;
+            bandFrequenciesRange = QRZHelper.GetBandFrequencies();
+            modes = QRZHelper.GetModes();
 
         }
 
         #region Private Methods
-
         private void Wb_DocumentCompleted(object sender, WebBrowserDocumentCompletedEventArgs e)
         {
             flagDocumentCompleted = true;
-            string log = $"Wb_DocumentCompleted - Url={e.Url}";
+            lastCompletePageLoad = e.Url.ToString();
+            string log = $"Wb_DocumentCompleted - Url={lastCompletePageLoad}";
             Debug.WriteLine(log);
         }
 
         private bool NavigateAndWait(string Url)
         {
-            return NavigateAndWait(Url, PageLoadTimeOut);
+            NavigateAndWait(Url, PageLoadTimeOut);
+            Debug.WriteLine($"***** NavigateAndWait: {Url} COMPLETE *******");
+            return true;
         }
 
         private bool NavigateAndWait(string Url, long timeout)
@@ -69,7 +76,7 @@ namespace QRZLibrary
             Stopwatch stopwatch = new Stopwatch();
             stopwatch.Start();
             wb.Navigate(Url);
-            while (wb.ReadyState != WebBrowserReadyState.Complete)
+            while (wb.ReadyState != WebBrowserReadyState.Complete && lastCompletePageLoad != Url)
             {
                 Application.DoEvents();
                 Thread.Sleep(CpuSleep);
@@ -370,6 +377,339 @@ namespace QRZLibrary
             return ret;
         }
 
+        // Add QSO into Logbook
+        public bool AddQSOToLogbook(string qrzToCall, string freq, string mode, string date, string time, string comment)
+        {
+            bool ret = false;
+
+            if (StartAddCall(qrzToCall))
+            {
+                if(SetQSOData(qrzToCall, freq, mode, date, time, comment))
+                {
+                    Stopwatch stopwatch = new Stopwatch();
+                    stopwatch.Start();
+
+                    bool PageLoaded = false;
+
+                    object[] o = new object[1];
+                    o[0] = "0";
+                    wb.Document.InvokeScript("newQSOform", o);
+
+                    while (!PageLoaded)
+                    {
+                        if (stopwatch.ElapsedMilliseconds > 1000)
+                        {
+                            HtmlElement loadingDiv = wb.Document.GetElementById("filterLoading");
+                            if (loadingDiv != null)
+                                PageLoaded = (loadingDiv.Style.Contains("display: none"));
+                        }
+
+                        Application.DoEvents();
+                        Thread.Sleep(CpuSleep);
+                        if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
+                            break;
+                    }
+
+                    ret = PageLoaded;
+                }
+            }
+
+            return ret;
+        }
+
+        public bool EditQSOToLogbook(int position, string qrzToCall, string freq, string mode, string date, string time, string comment)
+        {
+            bool ret = false;
+
+            if (StartEditQSO(position))
+            {
+                if (SetQSOData(qrzToCall, freq, mode, date, time, comment))
+                {
+                    Stopwatch stopwatch = new Stopwatch();
+                    stopwatch.Start();
+
+                    bool PageLoaded = false;
+
+                    object[] o = new object[1];
+                    o[0] = "0";
+                    wb.Document.InvokeScript("newQSOform", o);
+
+                    while (!PageLoaded)
+                    {
+                        if (stopwatch.ElapsedMilliseconds > 1000)
+                        {
+                            HtmlElement loadingDiv = wb.Document.GetElementById("filterLoading");
+                            if (loadingDiv != null)
+                                PageLoaded = (loadingDiv.Style.Contains("display: none"));
+                        }
+
+                        Application.DoEvents();
+                        Thread.Sleep(CpuSleep);
+                        if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
+                            break;
+                    }
+
+                    ret = PageLoaded;
+                }
+            }
+
+            return ret;
+        }
+
+
+        // Edit QSO
+        public bool StartEditQSO(int position)
+        {
+            bool ret = false;
+            int qsoForPage = GetEntriesForPage();
+            if (qsoForPage > 0)
+            {
+                float fQsoForPage = (float)qsoForPage;
+                float fPosition = (float)position;
+                bool HaveRestStart = ((fPosition % fQsoForPage) != 0);
+                int page = (position / qsoForPage) + (HaveRestStart ? 1 : 0);
+
+                if (GotoLoogbookPage(page) == page)
+                {
+                    HtmlElement table = wb.Document.GetElementById("lbtab");
+                    HtmlElement thead = QRZHelper.GetElementByTagAndClassName(table, "thead", "");
+                    if (thead.TagName != null)
+                    {
+                        HtmlElementCollection colnames = thead.GetElementsByTagName("TH");
+                        if (colnames != null)
+                        {
+                            HtmlElement tbody = QRZHelper.GetElementByTagAndClassName(table, "tbody", "");
+                            if (tbody != null)
+                            {
+                                HtmlElementCollection rows = tbody.GetElementsByTagName("TR");
+                                foreach (HtmlElement row in rows)
+                                {
+                                    HtmlElementCollection cols = row.GetElementsByTagName("TD");
+                                    int currCol = 0;
+                                    int curPos = -1;
+                                    foreach (HtmlElement cell in cols)
+                                    {
+                                        switch (colnames[currCol].Id)
+                                        {
+                                            case "th_lnum":
+                                                curPos = QRZHelper.GetIntByString(cell.InnerText);
+                                                if (curPos == position)
+                                                {
+                                                    row.InvokeMember("click");
+                                                    HtmlElement lchk = QRZHelper.GetElementByTagAndClassName(row, "input", "lchk");
+
+                                                    HtmlElement osel = wb.Document.GetElementById("osel");
+                                                    if (osel != null)
+                                                    {
+                                                        osel.SetAttribute("checked", "checked");
+                                                        osel.InvokeMember("click"); //SetAttribute("checked", "checked");
+                                                        HtmlElement abut = wb.Document.GetElementById("abut");
+                                                        if (abut != null)
+                                                        {
+                                                            Stopwatch stopwatch = new Stopwatch();
+                                                            stopwatch.Start();
+
+                                                            bool PageLoaded = false;
+
+                                                            // Open the record to Edit
+                                                            wb.Document.InvokeScript("go_list", null);
+
+                                                            while (!PageLoaded)
+                                                            {
+                                                                if (stopwatch.ElapsedMilliseconds > 1000)
+                                                                {
+                                                                    HtmlElement loadingDiv = wb.Document.GetElementById("filterLoading");
+                                                                    if (loadingDiv != null)
+                                                                        PageLoaded = (loadingDiv.Style.Contains("display: none"));
+                                                                }
+
+                                                                Application.DoEvents();
+                                                                Thread.Sleep(CpuSleep);
+                                                                if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
+                                                                    break;
+                                                            }
+
+                                                            // If record is open 
+                                                            if (PageLoaded)
+                                                            {
+                                                                stopwatch = new Stopwatch();
+                                                                stopwatch.Start();
+                                                                PageLoaded = false;
+
+                                                                object[] o = new object[2];
+                                                                o[0] = "edit";
+                                                                o[0] = "";
+                                                                wb.Document.InvokeScript("lb_go", o);
+
+                                                                while (!PageLoaded)
+                                                                {
+                                                                    if (stopwatch.ElapsedMilliseconds > 1000)
+                                                                    {
+                                                                        HtmlElement loadingDiv = wb.Document.GetElementById("filterLoading");
+                                                                        if (loadingDiv != null)
+                                                                            PageLoaded = (loadingDiv.Style.Contains("display: none"));
+                                                                    }
+
+                                                                    Application.DoEvents();
+                                                                    Thread.Sleep(CpuSleep);
+                                                                    if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
+                                                                        break;
+                                                                }
+
+                                                                return PageLoaded;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                break;
+                                        }
+                                    }
+                                    if (curPos >= position)
+                                        break;
+                                }
+
+                            }
+                        }
+                    }
+                }
+            }
+            return ret;
+        }
+
+        // Insert Data il QSO ADD or EDIT fields
+        private bool SetQSOData(string qrzToCall, string freq, string mode, string date, string time, string comment)
+        {
+            bool ret = false;
+            bool bOK = false;
+            string bandFound = string.Empty;
+
+            // Check the Date Format
+            bOK = (DateTime.TryParse(date, out DateTime dummyDate));
+
+            // Set the Date in to input data
+            if (bOK)
+            {
+                bOK = false;
+                HtmlElement start_date = wb.Document.GetElementById("start_date");
+                if (start_date != null)
+                {
+                    start_date.SetAttribute("value", date);
+                    bOK = true;
+                }
+            }
+
+            // Check the Time Format
+            if (bOK)
+                bOK = TimeSpan.TryParse(time, out TimeSpan dummyTime);
+
+            // Set the Time in to input data
+            if (bOK)
+            {
+                bOK = false;
+                HtmlElement start_time = wb.Document.GetElementById("start_time");
+                if (start_time != null)
+                {
+                    start_time.SetAttribute("value", time);
+                    bOK = true;
+                }
+            }
+
+            // Check The Freq
+            if (bOK)
+            {
+                bOK = false;
+                if (double.TryParse(freq.Replace(".", ","), out double dFreq))
+                {
+                    bandFound = bandFrequenciesRange.Where(x => dFreq >= x.Min && dFreq <= x.Max).FirstOrDefault()?.Band;
+                }
+                bOK = (!string.IsNullOrEmpty(bandFound));
+            }
+
+            //Set the Freq
+            if (bOK)
+            {
+                bOK = false;
+                HtmlElement freq2 = wb.Document.GetElementById("freq2");
+                if (freq2 != null)
+                {
+                    freq2.SetAttribute("value", freq);
+                    HtmlElement band2 = wb.Document.GetElementById("band2");
+                    if (band2 != null)
+                    {
+                        band2.SetAttribute("value", bandFound);
+                        bOK = true;
+                    }
+                }
+            }
+
+            //Chek The Mode
+            if (bOK)
+            {
+                bOK = false;
+                if (!string.IsNullOrEmpty(mode))
+                {
+                    bOK = modes.Where(x => x == mode).Any();
+                }
+            }
+
+            //Set the Mode
+            if (bOK)
+            {
+                bOK = false;
+                HtmlElement mode2 = wb.Document.GetElementById("mode2");
+                if (mode2 != null)
+                {
+                    mode2.SetAttribute("value", mode);
+                    bOK = true;
+                }
+            }
+
+            // Set RTS SENT
+            if (bOK)
+            {
+                bOK = false;
+                HtmlElement rst_sent = wb.Document.GetElementById("rst_sent");
+                if (rst_sent != null)
+                {
+                    rst_sent.SetAttribute("value", "59");
+                    bOK = true;
+                }
+            }
+
+            // Set RTS RCVD
+            if (bOK)
+            {
+                bOK = false;
+                HtmlElement rst_rcvd = wb.Document.GetElementById("rst_rcvd");
+                if (rst_rcvd != null)
+                {
+                    rst_rcvd.SetAttribute("value", "59");
+                    bOK = true;
+                }
+            }
+
+            //Set the comment
+            if (bOK)
+            {
+                if (!string.IsNullOrEmpty(comment))
+                {
+                    bOK = false;
+                    HtmlElement comments1 = wb.Document.GetElementById("comments1");
+                    if (comments1 != null)
+                    {
+                        comments1.SetAttribute("value", comment);
+                        bOK = true;
+                    }
+
+                }
+            }
+
+            if (bOK)
+                return true;
+
+            return ret;
+        }
+
         public LookupEntry ExecQuery(string QRZsearch)
         {
             LookupEntry ret = null; ;
@@ -524,7 +864,8 @@ namespace QRZLibrary
                                 if (stopwatch.ElapsedMilliseconds > 1000)
                                 {
                                     HtmlElement loadingDiv = wb.Document.GetElementById("filterLoading");
-                                    PageLoaded = (loadingDiv.Style.Contains("display: none"));
+                                    if (loadingDiv != null)
+                                        PageLoaded = (loadingDiv.Style.Contains("display: none"));
                                 }
 
                                 Application.DoEvents();
@@ -538,6 +879,10 @@ namespace QRZLibrary
                                 if (GotoLogbook(true))
                                     ret = GetEntriesForPage();
                             }
+                        }
+                        else if (currValue > 0 && currValue == entries)
+                        {
+                            ret = entries;
                         }
                     }
                 }
@@ -637,7 +982,8 @@ namespace QRZLibrary
                             if (stopwatch.ElapsedMilliseconds > 1000)
                             {
                                 HtmlElement loadingDiv = wb.Document.GetElementById("filterLoading");
-                                PageLoaded = (loadingDiv.Style.Contains("display: none"));
+                                if (loadingDiv != null)
+                                    PageLoaded = (loadingDiv.Style.Contains("display: none"));
                             }
 
                             Application.DoEvents();
@@ -863,7 +1209,10 @@ namespace QRZLibrary
                                                 }
                                                 if (lbrow.position > 0)
                                                     ret.Add(lbrow);
+                                                if (curPos > end)
+                                                    break;
                                             }
+
                                         }
                                     }
                                 }

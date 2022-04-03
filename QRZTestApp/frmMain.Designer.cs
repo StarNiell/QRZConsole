@@ -111,6 +111,7 @@ namespace QRZConsole
             // 
             // txtCommand
             // 
+            this.txtCommand.AcceptsTab = true;
             this.txtCommand.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(64)))), ((int)(((byte)(64)))), ((int)(((byte)(64)))));
             this.txtCommand.Dock = System.Windows.Forms.DockStyle.Bottom;
             this.txtCommand.Font = new System.Drawing.Font("Consolas", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
@@ -119,9 +120,11 @@ namespace QRZConsole
             this.txtCommand.Name = "txtCommand";
             this.txtCommand.Size = new System.Drawing.Size(936, 20);
             this.txtCommand.TabIndex = 41;
+            this.txtCommand.TextChanged += new System.EventHandler(this.txtCommand_TextChanged);
             this.txtCommand.KeyDown += new System.Windows.Forms.KeyEventHandler(this.txtCommand_KeyDown);
             this.txtCommand.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.txtCommand_KeyPress);
             this.txtCommand.KeyUp += new System.Windows.Forms.KeyEventHandler(this.txtCommand_KeyUp);
+            this.txtCommand.PreviewKeyDown += new System.Windows.Forms.PreviewKeyDownEventHandler(this.txtCommand_PreviewKeyDown);
             // 
             // groupBox3
             // 

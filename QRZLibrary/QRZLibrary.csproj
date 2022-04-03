@@ -46,6 +46,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Classes\BandFrequencyRange.cs" />
     <Compile Include="Classes\LogbookEntry.cs" />
     <Compile Include="Classes\LookupEntry.cs" />
     <Compile Include="Logbook.cs" />

@@ -22,7 +22,12 @@ namespace QRZConsole
 
         private delegate void SafeCallDelegate(string log, bool appendNewLine);
         private string lastQRZ = string.Empty;
+        private string lastFreq = "7100";
+        private string lastMode = "SSB";
         private string currentViewMode = "raw";
+
+        private bool isTab = false;
+        private bool isShiftTab = false;
 
         private Winsock ws;
 
@@ -556,6 +561,81 @@ namespace QRZConsole
             }
         }
 
+        private void AddQSO(string qrzToAdd, string freq, string mode, string date, string time, string comment)
+        {
+            if (qrzToAdd != "" && freq != "" && mode != "" && date != "" && time != "")
+            {
+                if (freq.Length > 3)
+                {
+                    if (freq.IndexOf(".") < 0)
+                    {
+                        freq = freq.Insert(freq.Length - 3, ".");
+                    }
+                }
+
+                bool QsoAdded = qrz.AddQSOToLogbook(qrzToAdd, freq, mode, date, time, comment);
+
+                if (QsoAdded)
+                {
+                    lastMode = mode;
+                    lastQRZ = qrzToAdd;
+                    lastFreq = freq;
+                    addMonitor("QSO added succesfully!");
+                }
+                else
+                {
+                    addMonitor("Unable to Add QSO on QRZ.COM. Please check the command format");
+                    addMonitor("Remember that the frequencies must be entered in MHz and contain only one decimal point. (eg 7.076 or 7.07615)");
+                    addMonitor("aq [qrz] [freq] [mode] [date] [time] [comment]");
+                }
+            }
+            else
+            {
+                addMonitor("Invalid command! Please check the format:");
+                addMonitor("aq [qrz] [freq] [mode] [date] [time] [comment]");
+            }
+        }
+
+        private void EditQSO(string position, string qrzToAdd, string freq, string mode, string date, string time, string comment)
+        {
+            int pos = 0;
+            if (int.TryParse(position, out int tmp))
+            {
+                pos = tmp;
+            }
+
+            if (pos > 0 && qrzToAdd != "" && freq != "" && mode != "" && date != "" && time != "")
+            {
+                if (freq.Length > 3)
+                {
+                    if (freq.IndexOf(".") < 0)
+                    {
+                        freq = freq.Insert(freq.Length - 3, ".");
+                    }
+                }
+
+                bool QsoEdited = qrz.EditQSOToLogbook(pos, qrzToAdd, freq, mode, date, time, comment);
+
+                if (QsoEdited)
+                {
+                    lastMode = mode;
+                    lastQRZ = qrzToAdd;
+                    lastFreq = freq;
+                    addMonitor("QSO edited succesfully!");
+                }
+                else
+                {
+                    addMonitor("Unable to Edit QSO on QRZ.COM. Please check the command format");
+                    addMonitor("Remember that the frequencies must be entered in MHz and contain only one decimal point. (eg 7.076 or 7.07615)");
+                    addMonitor("eq [position] [qrz] [freq] [mode] [date] [time] [comment]");
+                }
+            }
+            else
+            {
+                addMonitor("Invalid command! Please check the format:");
+                addMonitor("eq [position] [qrz] [freq] [mode] [date] [time] [comment]");
+            }
+        }
 
         private void GetQSObyRangeTextRaw(int start, int end)
         {
@@ -786,6 +866,13 @@ namespace QRZConsole
             txtMonitor.Text = string.Empty;
         }
 
+        private void GetLastData()
+        {
+            int dataLen = 20;
+            addMonitor("Last data in memory:");
+            addMonitor(GetFixedString($"  QRZ", dataLen) + lastQRZ);
+        }
+
         private void btnOrderDateAsc_Click(object sender, EventArgs e)
         {
             OrderDateAsc();
@@ -858,17 +945,13 @@ namespace QRZConsole
             {
 
                 elabCommand(txtCommand.Text);
-
-
-                txtCommand.SelectAll();
-                txtCommand.Focus();
-
                 e.Handled = true;
             }
         }
+
         private void txtCommand_KeyPress(object sender, KeyPressEventArgs e)
         {
-
+            
         }
 
         private void elabCommand(string command)
@@ -890,6 +973,10 @@ namespace QRZConsole
                 string prm1 = string.Empty;
                 string prm2 = string.Empty;
                 string prm3 = string.Empty;
+                string prm4 = string.Empty;
+                string prm5 = string.Empty;
+                string prm6 = string.Empty;
+                string prm7 = string.Empty;
                 if (command.IndexOf(" ") > 0)
                 {
                     if (command.Split(" ".ToCharArray()[0]).Length > 1)
@@ -898,6 +985,14 @@ namespace QRZConsole
                         prm2 = command.Split(" ".ToCharArray()[0])[2];
                     if (command.Split(" ".ToCharArray()[0]).Length > 3)
                         prm3 = command.Split(" ".ToCharArray()[0])[3];
+                    if (command.Split(" ".ToCharArray()[0]).Length > 4)
+                        prm4 = command.Split(" ".ToCharArray()[0])[4];
+                    if (command.Split(" ".ToCharArray()[0]).Length > 5)
+                        prm5 = command.Split(" ".ToCharArray()[0])[5];
+                    if (command.Split(" ".ToCharArray()[0]).Length > 6)
+                        prm6 = command.Split(" ".ToCharArray()[0])[6];
+                    if (command.Split(" ".ToCharArray()[0]).Length > 7)
+                        prm7 = command.Split(" ".ToCharArray()[0])[7];
                 }
 
                 cmd = cmd.ToLower();
@@ -916,6 +1011,22 @@ namespace QRZConsole
                 int iprm3 = 0;
                 if (int.TryParse(prm2, out int tmp3))
                     iprm3 = tmp3;
+
+                int iprm4 = 0;
+                if (int.TryParse(prm2, out int tmp4))
+                    iprm4 = tmp4;
+
+                int iprm5 = 0;
+                if (int.TryParse(prm2, out int tmp5))
+                    iprm5 = tmp5;
+
+                int iprm6 = 0;
+                if (int.TryParse(prm2, out int tmp6))
+                    iprm6 = tmp6;
+
+                int iprm7 = 0;
+                if (int.TryParse(prm2, out int tmp7))
+                    iprm7 = tmp7;
 
                 switch (cmd)
                 {
@@ -1005,6 +1116,22 @@ namespace QRZConsole
                     case "qr":
                         GetQSObyRangeTextRaw(iprm1, iprm2);
                         break;
+                    case "aq":
+                        if (prm6 != string.Empty)
+                        {
+                            string tmp = (cmd + " " + prm1 + " " + prm2 + " " + prm3 + " " + prm4 + " " + prm5 + " ");
+                            prm6 = command.Substring(tmp.Length, (command.Length - tmp.Length));
+                        }
+                        AddQSO(prm1, prm2, prm3, prm4, prm5, prm6);
+                        break;
+                    case "eq":
+                        if (prm7 != string.Empty)
+                        {
+                            string tmp = (cmd + " " + prm1 + " " + prm2 + " " + prm3 + " " + prm4 + " " + prm5 + " " + prm6 + " ");
+                            prm7 = command.Substring(tmp.Length, (command.Length - tmp.Length));
+                        }
+                        EditQSO(prm1, prm2, prm3, prm4, prm5, prm6, prm7);
+                        break;
                     case "cl":
                         ClearMonitor();
                         break;
@@ -1046,6 +1173,9 @@ namespace QRZConsole
                     case "dc":
                         ClusterDxCmd(command);
                         break;
+                    case "ld":
+                        GetLastData();
+                        break;
                     case "qi":
                     case "exit":
                         this.Close();
@@ -1055,6 +1185,8 @@ namespace QRZConsole
                         break;
                 }
             }
+            txtCommand.SelectAll();
+            txtCommand.Focus();
         }
 
         private void SwitchFullScreen()
@@ -1129,6 +1261,9 @@ namespace QRZConsole
             addMonitor(GetFixedString($"  Zoom in", cmdlen) + "CTRL++");
             addMonitor(GetFixedString($"  Zoom out", cmdlen) + "CTRL+-");
             addMonitor(GetFixedString($"  Zoom reset", cmdlen) + "CTRL+0");
+            addMonitor("Logbook:");
+            addMonitor(GetFixedString($"  Page Up (pu)", cmdlen) + "CTRL+PagUp");
+            addMonitor(GetFixedString($"  Page Down (pd)", cmdlen) + "CTRL+PagDown");
             addMonitor("Behaviors:");
             addMonitor(GetFixedString($"  Set the cursor in the command field", cmdlen) + "F2");
             addMonitor($"-------------------------------------------------------------------------");
@@ -1153,6 +1288,9 @@ namespace QRZConsole
             addMonitor(GetFixedString($"  Lookup and Check Worked", cmdlen) + "lw [qrz]");
             addMonitor(GetFixedString($"  Check Worked and Lookup", cmdlen) + "wl [qrz]");
             addMonitor("Logbook:");
+            addMonitor(GetFixedString($"  Add QSO", cmdlen) + "aq [qrz] [freq] [mode] [date] [time] [comment]");
+            addMonitor(GetFixedString($"  Edit QSO", cmdlen) + "eq [position] [qrz] [freq] [mode] [date] [time] [comment]");
+            addMonitor(GetFixedString($"  Delete QSO", cmdlen) + "dq [position]");
             addMonitor(GetFixedString($"  Open Logbook", cmdlen) + "lb");
             addMonitor(GetFixedString($"  QSO Count", cmdlen) + "qc");
             addMonitor(GetFixedString($"  Logbook pages", cmdlen) + "lp");
@@ -1181,6 +1319,7 @@ namespace QRZConsole
             addMonitor(GetFixedString($"  Switch View", cmdlen) + "sw");
             addMonitor(GetFixedString($"  Switch Check Is Logged at startup", cmdlen) + "sc");
             addMonitor(GetFixedString($"  Switch screen (normal/fullsize)", cmdlen) + "fs");
+            addMonitor(GetFixedString($"  Last data in memory", cmdlen) + "ld");
             addMonitor(GetFixedString($"  Command List", cmdlen) + "cm");
             addMonitor(GetFixedString($"  Shortcut List", cmdlen) + "sl");
             addMonitor(GetFixedString($"  Quit", cmdlen) + "qi");
@@ -1191,12 +1330,15 @@ namespace QRZConsole
         {
             if (e.KeyCode == Keys.F2)
             {
+                e.Handled = true;
                 txtCommand.SelectAll();
                 txtCommand.Focus();
             }
 
             if (e.Control && (e.KeyCode == Keys.Add || e.KeyCode == Keys.Oemplus))
             {
+                e.Handled = true;
+
                 if (txtMonitor.Font.Size <= 40)
                 {
                     txtMonitor.Font = new Font(txtMonitor.Font.FontFamily, txtMonitor.Font.Size + 1);
@@ -1213,6 +1355,8 @@ namespace QRZConsole
 
             if (e.Control && (e.KeyCode == Keys.Subtract || e.KeyCode == Keys.OemMinus))
             {
+                e.Handled = true;
+
                 if (txtMonitor.Font.Size >= 6)
                 {
                     txtMonitor.Font = new Font(txtMonitor.Font.FontFamily, txtMonitor.Font.Size - 1);
@@ -1230,6 +1374,8 @@ namespace QRZConsole
 
             if (e.Control && (e.KeyCode == Keys.D0 || e.KeyCode == Keys.NumPad0))
             {
+                e.Handled = true;
+
                 txtMonitor.Font = new Font(txtMonitor.Font.FontFamily, 8.25f);
                 txtCommand.Font = txtMonitor.Font;
                 splitterExpand = 225;
@@ -1239,6 +1385,64 @@ namespace QRZConsole
                 btnSwitchView.Top = txtCommand.Top;
                 btnSwitchView.Left = txtCommand.Width - 20;
                 resetSplitter();
+            }
+
+            if (e.KeyCode == Keys.PageDown)
+            {
+
+                if (e.Control)
+                {
+                    e.Handled = true;
+                    txtCommand.Text = "pd";
+                    elabCommand(txtCommand.Text);
+
+                }
+                else
+                {
+                    if (!txtMonitor.Focused)
+                    {
+                        txtMonitor.Focus();
+                        SendKeys.Send("{PGDN}");
+                    }
+                }
+            }
+
+            if (e.KeyCode == Keys.PageUp)
+            {
+
+                if (e.Control)
+                {
+                    e.Handled = true;
+                    txtCommand.Text = "pu";
+                    elabCommand(txtCommand.Text);
+
+                }
+                else
+                {
+                    if (!txtMonitor.Focused)
+                    {
+                        txtMonitor.Focus();
+                        SendKeys.Send("{PGUP}");
+                    }
+                }
+            }
+
+            if (e.KeyCode == Keys.Up)
+            {
+                if (!txtMonitor.Focused)
+                {
+                    txtMonitor.Focus();
+                    SendKeys.Send("{UP}");
+                }
+            }
+
+            if (e.KeyCode == Keys.Down)
+            {
+                if (!txtMonitor.Focused)
+                {
+                    txtMonitor.Focus();
+                    SendKeys.Send("{DOWN}");
+                }
             }
 
         }
@@ -1523,6 +1727,93 @@ namespace QRZConsole
             txtCommand.Text = e.KeyChar.ToString();
             txtCommand.SelectionStart = txtCommand.Text.Length;
             txtCommand.Focus();
+        }
+
+        private void txtCommand_TextChanged(object sender, EventArgs e)
+        {
+            if (txtCommand.TextLength > 2)
+            {
+                if (txtCommand.Text.Substring(0, 3).ToUpper() == "AQ ")
+                {
+                    if (txtCommand.SelectionStart == 3)
+                    {
+                        if (!string.IsNullOrEmpty(lastQRZ))
+                        {
+                            txtCommand.Text = txtCommand.Text + lastQRZ + " " + lastFreq + " " + lastMode + " " + DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm");
+                            txtCommand.SelectionStart = 3;
+                            txtCommand.SelectionLength = lastQRZ.Length;
+                        }
+                    }
+                }
+            }
+        }
+
+        private void txtCommand_PreviewKeyDown(object sender, PreviewKeyDownEventArgs e)
+        {
+            if (e.KeyCode == Keys.Tab)
+            {
+                string smd = txtCommand.Text;
+                int startPos = -1;
+                int nextSpace = -1;
+                if (!e.Shift)
+                {
+                    startPos = txtCommand.SelectionStart + txtCommand.SelectionLength;
+
+                    if (smd.Substring(startPos - 1, 1) != " ")
+                        startPos++;
+
+                    if (txtCommand.TextLength > startPos + 1)
+                    {
+                        nextSpace = smd.IndexOf(' ', startPos);
+                        if (nextSpace < 0)
+                            nextSpace = txtCommand.TextLength;
+
+                        if (nextSpace >= 0)
+                        {
+                            startPos = smd.LastIndexOf(' ', startPos);
+                            if (startPos < 0)
+                                startPos = 0;
+                            else
+                                startPos++;
+
+                            txtCommand.SelectionStart = startPos;
+                            txtCommand.SelectionLength = (nextSpace - startPos);
+                        }
+                    }
+                }
+                else
+                {
+                    startPos = txtCommand.SelectionStart - 2;
+                    if (startPos > 0)
+                    {
+                        if (txtCommand.SelectionStart < txtCommand.TextLength)
+                        {
+                            if (smd.Substring(txtCommand.SelectionStart, 1) == " ")
+                            {
+                                startPos++;
+                            }
+                        }
+
+                        nextSpace = smd.LastIndexOf(' ', startPos);
+
+                        if (nextSpace < 0)
+                            nextSpace = 0;
+
+                        if (nextSpace >= 0)
+                        {
+                            startPos = smd.IndexOf(' ', nextSpace + 1);
+                            if (startPos < 0)
+                                startPos = txtCommand.TextLength;
+
+                            txtCommand.SelectionStart = nextSpace + 1;
+                            txtCommand.SelectionLength = (startPos - nextSpace - 1);
+                        }
+                    }
+                }
+                e.IsInputKey = true;
+
+
+            }
         }
     }
 }
