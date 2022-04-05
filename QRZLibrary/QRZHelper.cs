@@ -144,6 +144,7 @@ namespace QRZLibrary
         {
             List<string> m = new List<string>();
 
+            m.Add("AM");
             m.Add("ARDOP");
             m.Add("ATV");
             m.Add("C4FM");

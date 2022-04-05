@@ -345,7 +345,7 @@ namespace QRZLibrary
         public bool GotoLogbook(bool ForceReload = false)
         {
             bool ret = false;
-            ret = (!ForceReload && wb.Document != null && wb.Document.Title == "Logbook by QRZ.COM") && (wb.Document.GetElementById("button-addon4") != null);
+            ret = (!ForceReload && wb.Document != null && wb.Document.Title == "Logbook by QRZ.COM" && wb.Document.GetElementById("button-addon4") != null && wb.Document.GetElementById("addcall") != null);
             if (!ret)
             {
                 if (NavigateAndWait(LogbookUrl))
@@ -427,7 +427,7 @@ namespace QRZLibrary
                 {
                     Stopwatch stopwatch = new Stopwatch();
                     stopwatch.Start();
-
+                    flagDocumentCompleted = false;
                     bool PageLoaded = false;
 
                     object[] o = new object[1];
@@ -436,21 +436,72 @@ namespace QRZLibrary
 
                     while (!PageLoaded)
                     {
-                        if (stopwatch.ElapsedMilliseconds > 1000)
+                        if (flagDocumentCompleted)
                         {
-                            HtmlElement loadingDiv = wb.Document.GetElementById("filterLoading");
-                            if (loadingDiv != null)
-                                PageLoaded = (loadingDiv.Style.Contains("display: none"));
+                            if ((wb.Document.Title == "Logbook by QRZ.COM"))
+                            {
+                                HtmlElement lb_body = wb.Document.GetElementById("lb_body");
+                                if (lb_body != null)
+                                {
+                                    PageLoaded = (lb_body.InnerText.IndexOf("QSO Detail", 1) > 0);
+                                }
+                            }
+
                         }
 
                         Application.DoEvents();
                         Thread.Sleep(CpuSleep);
                         if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
+                        {
                             break;
+                        }
                     }
 
                     ret = PageLoaded;
                 }
+            }
+
+            return ret;
+        }
+
+        public bool DeleteQSOFromLogbook(int position)
+        {
+            bool ret = false;
+
+            if (StartEditQSO(position))
+            {
+                HtmlElement lbmenu = wb.Document.GetElementById("lbmenu");
+                lbmenu.GetElementsByTagName("input").GetElementsByName("op")[0].SetAttribute("value", "logdel");
+
+                bool PageLoaded = false;
+
+                Stopwatch stopwatch = new Stopwatch();
+                stopwatch.Start();
+                flagDocumentCompleted = false;
+                lbmenu.InvokeMember("submit");
+                while (!PageLoaded)
+                {
+                    if (flagDocumentCompleted)
+                    {
+                        if ((wb.Document.Title == "Logbook by QRZ.COM"))
+                        {
+                            HtmlElement addcall = wb.Document.GetElementById("addcall");
+                            PageLoaded = (addcall != null);
+                        }
+
+                    }
+
+                    Application.DoEvents();
+                    Thread.Sleep(CpuSleep);
+                    if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
+                    {
+                        break;
+                    }
+                }
+
+                NavigateAndWait(LogbookUrl);
+
+                ret = PageLoaded;
             }
 
             return ret;
@@ -495,71 +546,82 @@ namespace QRZLibrary
                                                 curPos = QRZHelper.GetIntByString(cell.InnerText);
                                                 if (curPos == position)
                                                 {
-                                                    row.InvokeMember("click");
-                                                    HtmlElement lchk = QRZHelper.GetElementByTagAndClassName(row, "input", "lchk");
 
-                                                    HtmlElement osel = wb.Document.GetElementById("osel");
-                                                    if (osel != null)
+
+                                                    //row.InvokeMember("dblclick");
+
+                                                    string pos = row.GetAttribute("data-pos");
+                                                    string num = row.GetAttribute("data-rownum");
+                                                    string bid = row.GetAttribute("data-bookid");
+
+
+                                                    HtmlElement lbmenu = wb.Document.GetElementById("lbmenu");
+                                                    //lbmenu.GetElementsByTagName("input").GetElementsByName("logid")[0].SetAttribute("value", num);
+                                                    lbmenu.GetElementsByTagName("input").GetElementsByName("bookid")[0].SetAttribute("value", bid);
+                                                    lbmenu.GetElementsByTagName("input").GetElementsByName("logpos")[0].SetAttribute("value", pos);
+
+                                                    bool PageLoaded = false;
+
+                                                    Stopwatch stopwatch = new Stopwatch();
+                                                    stopwatch.Start();
+                                                    flagDocumentCompleted = false;
+                                                    lbmenu.InvokeMember("submit");
+                                                    while (!PageLoaded)
                                                     {
-                                                        osel.SetAttribute("checked", "checked");
-                                                        osel.InvokeMember("click"); //SetAttribute("checked", "checked");
-                                                        HtmlElement abut = wb.Document.GetElementById("abut");
-                                                        if (abut != null)
+                                                        if (flagDocumentCompleted)
                                                         {
-                                                            Stopwatch stopwatch = new Stopwatch();
-                                                            stopwatch.Start();
-
-                                                            bool PageLoaded = false;
-
-                                                            // Open the record to Edit
-                                                            wb.Document.InvokeScript("go_list", null);
-
-                                                            while (!PageLoaded)
+                                                            if ((wb.Document.Title == "Logbook by QRZ.COM"))
                                                             {
-                                                                if (stopwatch.ElapsedMilliseconds > 1000)
+                                                                HtmlElement lb_body = wb.Document.GetElementById("lb_body");
+                                                                if (lb_body != null)
                                                                 {
-                                                                    HtmlElement loadingDiv = wb.Document.GetElementById("filterLoading");
-                                                                    if (loadingDiv != null)
-                                                                        PageLoaded = (loadingDiv.Style.Contains("display: none"));
+                                                                    PageLoaded = (lb_body.InnerText.IndexOf("QSO Detail", 1) > 0);
                                                                 }
+                                                            }
+                                                                
+                                                        }
 
-                                                                Application.DoEvents();
-                                                                Thread.Sleep(CpuSleep);
-                                                                if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
-                                                                    break;
+                                                        Application.DoEvents();
+                                                        Thread.Sleep(CpuSleep);
+                                                        if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
+                                                        {
+                                                            break;
+                                                        }
+                                                    }
+
+                                                    // If record is open 
+                                                    if (PageLoaded)
+                                                    {
+
+                                                        PageLoaded = false;
+
+                                                        stopwatch = new Stopwatch();
+                                                        stopwatch.Start();
+                                                        flagDocumentCompleted = false;
+
+                                                        wb.Document.InvokeScript("lb_go", new object[] { "edit", "" });
+
+                                                        while (!PageLoaded)
+                                                        {
+                                                            if (flagDocumentCompleted)
+                                                            {
+                                                                if ((wb.Document.Title == "Logbook by QRZ.COM"))
+                                                                {
+                                                                    HtmlElement start_date = wb.Document.GetElementById("start_date");
+                                                                    PageLoaded = (start_date != null);
+                                                                }
                                                             }
 
-                                                            // If record is open 
-                                                            if (PageLoaded)
+                                                            Application.DoEvents();
+                                                            Thread.Sleep(CpuSleep);
+                                                            if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
                                                             {
-                                                                stopwatch = new Stopwatch();
-                                                                stopwatch.Start();
-                                                                PageLoaded = false;
-
-                                                                object[] o = new object[2];
-                                                                o[0] = "edit";
-                                                                o[0] = "";
-                                                                wb.Document.InvokeScript("lb_go", o);
-
-                                                                while (!PageLoaded)
-                                                                {
-                                                                    if (stopwatch.ElapsedMilliseconds > 1000)
-                                                                    {
-                                                                        HtmlElement loadingDiv = wb.Document.GetElementById("filterLoading");
-                                                                        if (loadingDiv != null)
-                                                                            PageLoaded = (loadingDiv.Style.Contains("display: none"));
-                                                                    }
-
-                                                                    Application.DoEvents();
-                                                                    Thread.Sleep(CpuSleep);
-                                                                    if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
-                                                                        break;
-                                                                }
-
-                                                                return PageLoaded;
+                                                                break;
                                                             }
                                                         }
                                                     }
+
+                                                    return PageLoaded;
                                                 }
                                                 break;
                                         }
@@ -633,6 +695,9 @@ namespace QRZLibrary
                 if (freq2 != null)
                 {
                     freq2.SetAttribute("value", freq);
+                    wb.Document.InvokeScript("setFreq", new object[] { "2", "0" });
+                    wb.Document.InvokeScript("checkFreq", new object[] { "2", "0" });
+
                     HtmlElement band2 = wb.Document.GetElementById("band2");
                     if (band2 != null)
                     {
@@ -660,6 +725,7 @@ namespace QRZLibrary
                 if (mode2 != null)
                 {
                     mode2.SetAttribute("value", mode);
+                    wb.Document.InvokeScript("setMode", new object[] { mode, "1", "2" });
                     bOK = true;
                 }
             }

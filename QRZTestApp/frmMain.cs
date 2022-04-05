@@ -596,6 +596,28 @@ namespace QRZConsole
             }
         }
 
+        private void DeleteQSO(int position1, int pos2, int pos3)
+        {
+            if (position1 > 0 && position1 == pos2 && pos2 == pos3)
+            {
+                bool QsoDeleted = qrz.DeleteQSOFromLogbook(position1);
+                if (QsoDeleted)
+                {
+                    addMonitor("QSO deleted succesfully!");
+                }
+                else
+                {
+                    addMonitor("Unable to delete the QSO!");
+                }
+            }
+            else
+            {
+                addMonitor("Invalid command! Please check the format:");
+                addMonitor("Enter 3 times the param position after the dq command (for secuirity reasons!)");
+                addMonitor("dq [position] [position] [position] ");
+            }
+        }
+
         private void EditQSO(string position, string qrzToAdd, string freq, string mode, string date, string time, string comment)
         {
             int pos = 0;
@@ -1009,23 +1031,23 @@ namespace QRZConsole
                     iprm2 = tmp2;
 
                 int iprm3 = 0;
-                if (int.TryParse(prm2, out int tmp3))
+                if (int.TryParse(prm3, out int tmp3))
                     iprm3 = tmp3;
 
                 int iprm4 = 0;
-                if (int.TryParse(prm2, out int tmp4))
+                if (int.TryParse(prm4, out int tmp4))
                     iprm4 = tmp4;
 
                 int iprm5 = 0;
-                if (int.TryParse(prm2, out int tmp5))
+                if (int.TryParse(prm5, out int tmp5))
                     iprm5 = tmp5;
 
                 int iprm6 = 0;
-                if (int.TryParse(prm2, out int tmp6))
+                if (int.TryParse(prm6, out int tmp6))
                     iprm6 = tmp6;
 
                 int iprm7 = 0;
-                if (int.TryParse(prm2, out int tmp7))
+                if (int.TryParse(prm7, out int tmp7))
                     iprm7 = tmp7;
 
                 switch (cmd)
@@ -1131,6 +1153,9 @@ namespace QRZConsole
                             prm7 = command.Substring(tmp.Length, (command.Length - tmp.Length));
                         }
                         EditQSO(prm1, prm2, prm3, prm4, prm5, prm6, prm7);
+                        break;
+                    case "dq":
+                        DeleteQSO(iprm1, iprm2, iprm3);
                         break;
                     case "cl":
                         ClearMonitor();
@@ -1290,7 +1315,7 @@ namespace QRZConsole
             addMonitor("Logbook:");
             addMonitor(GetFixedString($"  Add QSO", cmdlen) + "aq [qrz] [freq] [mode] [date] [time] [comment]");
             addMonitor(GetFixedString($"  Edit QSO", cmdlen) + "eq [position] [qrz] [freq] [mode] [date] [time] [comment]");
-            addMonitor(GetFixedString($"  Delete QSO", cmdlen) + "dq [position]");
+            addMonitor(GetFixedString($"  Delete QSO", cmdlen) + "dq [position] [position] [position] (insert 3 times the same position)");
             addMonitor(GetFixedString($"  Open Logbook", cmdlen) + "lb");
             addMonitor(GetFixedString($"  QSO Count", cmdlen) + "qc");
             addMonitor(GetFixedString($"  Logbook pages", cmdlen) + "lp");
@@ -1759,8 +1784,11 @@ namespace QRZConsole
                 {
                     startPos = txtCommand.SelectionStart + txtCommand.SelectionLength;
 
-                    if (smd.Substring(startPos - 1, 1) != " ")
-                        startPos++;
+                    if (startPos > 0)
+                    {
+                        if (smd.Substring(startPos - 1, 1) != " ")
+                            startPos++;
+                    }
 
                     if (txtCommand.TextLength > startPos + 1)
                     {
