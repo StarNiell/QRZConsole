@@ -76,6 +76,16 @@ namespace QRZLibrary
             return ret;
         }
 
+        public static int GetIntByStringOrNegative(string input)
+        {
+            int ret = -1;
+
+            if (int.TryParse(input, out int tmp))
+                ret = tmp;
+
+            return ret;
+        }
+
         public static DateTime GetDateTimeByString(string input)
         {
             DateTime ret = DateTime.MinValue;

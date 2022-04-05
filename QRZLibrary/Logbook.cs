@@ -58,10 +58,27 @@ namespace QRZLibrary
         #region Private Methods
         private void Wb_DocumentCompleted(object sender, WebBrowserDocumentCompletedEventArgs e)
         {
+            //InjectAlertBlocker();
             flagDocumentCompleted = true;
             lastCompletePageLoad = e.Url.ToString();
             string log = $"Wb_DocumentCompleted - Url={lastCompletePageLoad}";
             Debug.WriteLine(log);
+
+
+        }
+
+        private void InjectAlertBlocker() { 
+            HtmlElement head = wb.Document.GetElementsByTagName("head")[0];
+            if (head != null)
+            {
+                HtmlElement scriptEl = wb.Document.CreateElement("script");
+                if (scriptEl != null)
+                {
+                    string alertBlocker = "<script>window.alert = function () { }</script>";
+                    scriptEl.OuterHtml = alertBlocker;
+                    head.AppendChild(scriptEl);
+                }
+            }
         }
 
         private bool NavigateAndWait(string Url)
@@ -468,7 +485,7 @@ namespace QRZLibrary
         {
             bool ret = false;
 
-            if (StartEditQSO(position))
+            if (OpenQSORecord(position))
             {
                 HtmlElement lbmenu = wb.Document.GetElementById("lbmenu");
                 lbmenu.GetElementsByTagName("input").GetElementsByName("op")[0].SetAttribute("value", "logdel");
@@ -488,7 +505,6 @@ namespace QRZLibrary
                             HtmlElement addcall = wb.Document.GetElementById("addcall");
                             PageLoaded = (addcall != null);
                         }
-
                     }
 
                     Application.DoEvents();
@@ -499,8 +515,6 @@ namespace QRZLibrary
                     }
                 }
 
-                NavigateAndWait(LogbookUrl);
-
                 ret = PageLoaded;
             }
 
@@ -510,6 +524,46 @@ namespace QRZLibrary
 
         // Edit QSO
         public bool StartEditQSO(int position)
+        {
+            bool ret = false;
+
+            if (OpenQSORecord(position))
+            {
+                bool PageLoaded = false;
+
+                Stopwatch stopwatch = new Stopwatch();
+                stopwatch.Start();
+                flagDocumentCompleted = false;
+
+                wb.Document.InvokeScript("lb_go", new object[] { "edit", "" });
+
+                while (!PageLoaded)
+                {
+                    if (flagDocumentCompleted)
+                    {
+                        if ((wb.Document.Title == "Logbook by QRZ.COM"))
+                        {
+                            HtmlElement start_date = wb.Document.GetElementById("start_date");
+                            PageLoaded = (start_date != null);
+                        }
+                    }
+
+                    Application.DoEvents();
+                    Thread.Sleep(CpuSleep);
+                    if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
+                    {
+                        break;
+                    }
+                }
+
+                ret = PageLoaded;
+            }
+
+            return ret;
+        }
+
+
+        public bool OpenQSORecord(int position)
         {
             bool ret = false;
             int qsoForPage = GetEntriesForPage();
@@ -535,96 +589,51 @@ namespace QRZLibrary
                                 HtmlElementCollection rows = tbody.GetElementsByTagName("TR");
                                 foreach (HtmlElement row in rows)
                                 {
-                                    HtmlElementCollection cols = row.GetElementsByTagName("TD");
-                                    int currCol = 0;
-                                    int curPos = -1;
-                                    foreach (HtmlElement cell in cols)
+
+                                    int curPos = QRZHelper.GetIntByStringOrNegative(row.GetAttribute("data-pos"));
+                                    if (curPos >= 0)
+                                        curPos++;
+
+                                    if (curPos == position)
                                     {
-                                        switch (colnames[currCol].Id)
+                                        string pos = row.GetAttribute("data-pos");
+                                        string num = row.GetAttribute("data-rownum");
+                                        string bid = row.GetAttribute("data-bookid");
+
+                                        HtmlElement lbmenu = wb.Document.GetElementById("lbmenu");
+                                        lbmenu.GetElementsByTagName("input").GetElementsByName("bookid")[0].SetAttribute("value", bid);
+                                        lbmenu.GetElementsByTagName("input").GetElementsByName("logpos")[0].SetAttribute("value", pos);
+
+                                        bool PageLoaded = false;
+
+                                        Stopwatch stopwatch = new Stopwatch();
+                                        stopwatch.Start();
+                                        flagDocumentCompleted = false;
+                                        lbmenu.InvokeMember("submit");
+                                        while (!PageLoaded)
                                         {
-                                            case "th_lnum":
-                                                curPos = QRZHelper.GetIntByString(cell.InnerText);
-                                                if (curPos == position)
+                                            if (flagDocumentCompleted)
+                                            {
+                                                if ((wb.Document.Title == "Logbook by QRZ.COM"))
                                                 {
-
-
-                                                    //row.InvokeMember("dblclick");
-
-                                                    string pos = row.GetAttribute("data-pos");
-                                                    string num = row.GetAttribute("data-rownum");
-                                                    string bid = row.GetAttribute("data-bookid");
-
-
-                                                    HtmlElement lbmenu = wb.Document.GetElementById("lbmenu");
-                                                    //lbmenu.GetElementsByTagName("input").GetElementsByName("logid")[0].SetAttribute("value", num);
-                                                    lbmenu.GetElementsByTagName("input").GetElementsByName("bookid")[0].SetAttribute("value", bid);
-                                                    lbmenu.GetElementsByTagName("input").GetElementsByName("logpos")[0].SetAttribute("value", pos);
-
-                                                    bool PageLoaded = false;
-
-                                                    Stopwatch stopwatch = new Stopwatch();
-                                                    stopwatch.Start();
-                                                    flagDocumentCompleted = false;
-                                                    lbmenu.InvokeMember("submit");
-                                                    while (!PageLoaded)
+                                                    HtmlElement lb_body = wb.Document.GetElementById("lb_body");
+                                                    if (lb_body != null)
                                                     {
-                                                        if (flagDocumentCompleted)
-                                                        {
-                                                            if ((wb.Document.Title == "Logbook by QRZ.COM"))
-                                                            {
-                                                                HtmlElement lb_body = wb.Document.GetElementById("lb_body");
-                                                                if (lb_body != null)
-                                                                {
-                                                                    PageLoaded = (lb_body.InnerText.IndexOf("QSO Detail", 1) > 0);
-                                                                }
-                                                            }
-                                                                
-                                                        }
-
-                                                        Application.DoEvents();
-                                                        Thread.Sleep(CpuSleep);
-                                                        if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
-                                                        {
-                                                            break;
-                                                        }
+                                                        PageLoaded = (lb_body.InnerText.IndexOf("QSO Detail", 1) > 0);
                                                     }
-
-                                                    // If record is open 
-                                                    if (PageLoaded)
-                                                    {
-
-                                                        PageLoaded = false;
-
-                                                        stopwatch = new Stopwatch();
-                                                        stopwatch.Start();
-                                                        flagDocumentCompleted = false;
-
-                                                        wb.Document.InvokeScript("lb_go", new object[] { "edit", "" });
-
-                                                        while (!PageLoaded)
-                                                        {
-                                                            if (flagDocumentCompleted)
-                                                            {
-                                                                if ((wb.Document.Title == "Logbook by QRZ.COM"))
-                                                                {
-                                                                    HtmlElement start_date = wb.Document.GetElementById("start_date");
-                                                                    PageLoaded = (start_date != null);
-                                                                }
-                                                            }
-
-                                                            Application.DoEvents();
-                                                            Thread.Sleep(CpuSleep);
-                                                            if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
-                                                            {
-                                                                break;
-                                                            }
-                                                        }
-                                                    }
-
-                                                    return PageLoaded;
                                                 }
+
+                                            }
+
+                                            Application.DoEvents();
+                                            Thread.Sleep(CpuSleep);
+                                            if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
+                                            {
                                                 break;
+                                            }
                                         }
+
+                                        ret = PageLoaded;
                                     }
                                     if (curPos >= position)
                                         break;
@@ -696,7 +705,7 @@ namespace QRZLibrary
                 {
                     freq2.SetAttribute("value", freq);
                     wb.Document.InvokeScript("setFreq", new object[] { "2", "0" });
-                    wb.Document.InvokeScript("checkFreq", new object[] { "2", "0" });
+                    //wb.Document.InvokeScript("checkFreq", new object[] { "2", "0" });
 
                     HtmlElement band2 = wb.Document.GetElementById("band2");
                     if (band2 != null)
@@ -1218,63 +1227,72 @@ namespace QRZLibrary
                                             HtmlElementCollection rows = tbody.GetElementsByTagName("TR");
                                             foreach (HtmlElement row in rows)
                                             {
-                                                LogbookEntry lbrow = new LogbookEntry();
-                                                HtmlElementCollection cols = row.GetElementsByTagName("TD");
-                                                int currCol = 0;
-                                                int curPos = -1;
-                                                string tmp = string.Empty;
-                                                string DateTimeStr = string.Empty;
-                                                foreach (HtmlElement cell in cols)
+
+                                                int curPos = QRZHelper.GetIntByStringOrNegative(row.GetAttribute("data-pos"));
+                                                if (curPos >= 0)
+                                                    curPos++;
+
+                                                if (start <= curPos && curPos <= end)
                                                 {
-                                                    switch (colnames[currCol].Id)
+
+                                                    LogbookEntry lbrow = new LogbookEntry();
+                                                    HtmlElementCollection cols = row.GetElementsByTagName("TD");
+                                                    int currCol = 0;
+                                                    //int curPos = -1;
+                                                    string tmp = string.Empty;
+                                                    string DateTimeStr = string.Empty;
+                                                    foreach (HtmlElement cell in cols)
                                                     {
-                                                        case "th_lnum":
-                                                            curPos = QRZHelper.GetIntByString(cell.InnerText);
-                                                            if (!(start <= curPos && curPos <= end))
+                                                        switch (colnames[currCol].Id)
+                                                        {
+                                                            case "th_lnum":
+                                                                //curPos = QRZHelper.GetIntByString(cell.InnerText);
+                                                                //if (!(start <= curPos && curPos <= end))
+                                                                //    break;
+                                                                lbrow.position = curPos;
                                                                 break;
-                                                            lbrow.position = curPos;
+                                                            case "th_date":
+                                                                DateTimeStr = cell.InnerText;
+                                                                break;
+                                                            case "th_time":
+                                                                DateTimeStr += $" {cell.InnerText}";
+                                                                lbrow.QSODateTime = QRZHelper.GetDateTimeByString(DateTimeStr);
+                                                                break;
+                                                            case "th_call2":
+                                                                lbrow.Call = cell.InnerText;
+                                                                break;
+                                                            case "th_band1":
+                                                                lbrow.Band = cell.InnerText;
+                                                                break;
+                                                            case "th_freq2":
+                                                                lbrow.Frequency = cell.InnerText;
+                                                                break;
+                                                            case "th_mode2":
+                                                                lbrow.Mode = cell.InnerText;
+                                                                break;
+                                                            case "th_grid2":
+                                                                lbrow.GridLocator = cell.InnerText;
+                                                                break;
+                                                            case "th_country2":
+                                                                lbrow.Country = cell.InnerText;
+                                                                break;
+                                                            case "th_name2":
+                                                                lbrow.OperatorName = cell.InnerText;
+                                                                break;
+                                                            case "th_comments":
+                                                                lbrow.Comments = cell.InnerText;
+                                                                break;
+                                                            case "th_status":
+                                                                lbrow.Confirmed = cell.InnerText.StartsWith("Confirmed");
+                                                                break;
+                                                        }
+                                                        if (curPos > -1 && (!(start <= curPos && curPos <= end)))
                                                             break;
-                                                        case "th_date":
-                                                            DateTimeStr = cell.InnerText;
-                                                            break;
-                                                        case "th_time":
-                                                            DateTimeStr += $" {cell.InnerText}";
-                                                            lbrow.QSODateTime = QRZHelper.GetDateTimeByString(DateTimeStr);
-                                                            break;
-                                                        case "th_call2":
-                                                            lbrow.Call = cell.InnerText;
-                                                            break;
-                                                        case "th_band1":
-                                                            lbrow.Band = cell.InnerText;
-                                                            break;
-                                                        case "th_freq2":
-                                                            lbrow.Frequency = cell.InnerText;
-                                                            break;
-                                                        case "th_mode2":
-                                                            lbrow.Mode = cell.InnerText;
-                                                            break;
-                                                        case "th_grid2":
-                                                            lbrow.GridLocator = cell.InnerText;
-                                                            break;
-                                                        case "th_country2":
-                                                            lbrow.Country = cell.InnerText;
-                                                            break;
-                                                        case "th_name2":
-                                                            lbrow.OperatorName = cell.InnerText;
-                                                            break;
-                                                        case "th_comments":
-                                                            lbrow.Comments = cell.InnerText;
-                                                            break;
-                                                        case "th_status":
-                                                            lbrow.Confirmed = cell.InnerText.StartsWith("Confirmed");
-                                                            break;
+                                                        currCol++;
                                                     }
-                                                    if (curPos > -1 && (!(start <= curPos && curPos <= end)))
-                                                        break;
-                                                    currCol++;
+                                                    if (lbrow.position > 0)
+                                                        ret.Add(lbrow);
                                                 }
-                                                if (lbrow.position > 0)
-                                                    ret.Add(lbrow);
                                                 if (curPos > end)
                                                     break;
                                             }

@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QRZConsole", "QRZTestApp\QR
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{A0E2CB07-2DF9-4ACD-B248-90CC27F77105}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QRZTest", "QRZTest\QRZTest.csproj", "{87AB2794-85E7-4044-AB36-FC8A78E05483}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -23,6 +25,10 @@ Global
 		{4CBD51F6-4144-4CEE-B7D2-922B33545F2E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4CBD51F6-4144-4CEE-B7D2-922B33545F2E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4CBD51F6-4144-4CEE-B7D2-922B33545F2E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{87AB2794-85E7-4044-AB36-FC8A78E05483}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{87AB2794-85E7-4044-AB36-FC8A78E05483}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{87AB2794-85E7-4044-AB36-FC8A78E05483}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{87AB2794-85E7-4044-AB36-FC8A78E05483}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

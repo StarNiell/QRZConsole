@@ -31,6 +31,10 @@ namespace QRZConsole
 
         private Winsock ws;
 
+        List<string> cmdHistory = new List<string>();
+        int cmdHistoryIndex = 0;
+
+
         string ClusterAddr = "gb7ujs.ham-radio-op.net";
         int ClusterPort = 7373;
         private bool ClusterDebug = false;
@@ -563,7 +567,7 @@ namespace QRZConsole
 
         private void AddQSO(string qrzToAdd, string freq, string mode, string date, string time, string comment)
         {
-            if (qrzToAdd != "" && freq != "" && mode != "" && date != "" && time != "")
+            if (qrzToAdd != "" && qrzToAdd != "[CALL]" && freq != "" && mode != "" && date != "" && time != "")
             {
                 if (freq.Length > 3)
                 {
@@ -572,6 +576,9 @@ namespace QRZConsole
                         freq = freq.Insert(freq.Length - 3, ".");
                     }
                 }
+
+                qrzToAdd = qrzToAdd.ToUpper();
+                mode = mode.ToUpper();
 
                 bool QsoAdded = qrz.AddQSOToLogbook(qrzToAdd, freq, mode, date, time, comment);
 
@@ -600,6 +607,7 @@ namespace QRZConsole
         {
             if (position1 > 0 && position1 == pos2 && pos2 == pos3)
             {
+                addMonitor($"Deleting QSO from Logbook at position: {position1}...");
                 bool QsoDeleted = qrz.DeleteQSOFromLogbook(position1);
                 if (QsoDeleted)
                 {
@@ -635,6 +643,9 @@ namespace QRZConsole
                         freq = freq.Insert(freq.Length - 3, ".");
                     }
                 }
+
+                qrzToAdd = qrzToAdd.ToUpper();
+                mode = mode.ToUpper();
 
                 bool QsoEdited = qrz.EditQSOToLogbook(pos, qrzToAdd, freq, mode, date, time, comment);
 
@@ -954,6 +965,29 @@ namespace QRZConsole
             {
                 e.SuppressKeyPress = true;
             }
+
+            if (e.KeyCode == Keys.Up)
+            {
+                if ((cmdHistoryIndex + 1) <= cmdHistory.Count && cmdHistoryIndex > 0)
+                {
+                    cmdHistoryIndex--;
+                }
+                txtCommand.Text = cmdHistory.ElementAt(cmdHistoryIndex);
+                e.SuppressKeyPress = true;
+                txtCommand.SelectAll();
+            }
+
+            if (e.KeyCode == Keys.Down)
+            {
+                if ((cmdHistoryIndex + 1) < cmdHistory.Count)
+                {
+                    cmdHistoryIndex++;
+                }
+                txtCommand.Text = cmdHistory.ElementAt(cmdHistoryIndex);
+                e.SuppressKeyPress = true;
+                txtCommand.SelectAll();
+            }
+
         }
 
         private void btnDing_Click(object sender, EventArgs e)
@@ -1210,6 +1244,10 @@ namespace QRZConsole
                         break;
                 }
             }
+
+            cmdHistory.Add(command);
+            cmdHistoryIndex = cmdHistory.Count - 1;
+
             txtCommand.SelectAll();
             txtCommand.Focus();
         }
@@ -1291,6 +1329,8 @@ namespace QRZConsole
             addMonitor(GetFixedString($"  Page Down (pd)", cmdlen) + "CTRL+PagDown");
             addMonitor("Behaviors:");
             addMonitor(GetFixedString($"  Set the cursor in the command field", cmdlen) + "F2");
+            addMonitor(GetFixedString($"  Moving back the command list", cmdlen) + "Arrow Key Up");
+            addMonitor(GetFixedString($"  Moving forward the command list", cmdlen) + "Arrow Key Down");
             addMonitor($"-------------------------------------------------------------------------");
 
         }
@@ -1315,7 +1355,7 @@ namespace QRZConsole
             addMonitor("Logbook:");
             addMonitor(GetFixedString($"  Add QSO", cmdlen) + "aq [qrz] [freq] [mode] [date] [time] [comment]");
             addMonitor(GetFixedString($"  Edit QSO", cmdlen) + "eq [position] [qrz] [freq] [mode] [date] [time] [comment]");
-            addMonitor(GetFixedString($"  Delete QSO", cmdlen) + "dq [position] [position] [position] (insert 3 times the same position)");
+            addMonitor(GetFixedString($"  Delete QSO", cmdlen) + "dq [position] [position] [position] (enter 3 times the same position to delete for security reasons)");
             addMonitor(GetFixedString($"  Open Logbook", cmdlen) + "lb");
             addMonitor(GetFixedString($"  QSO Count", cmdlen) + "qc");
             addMonitor(GetFixedString($"  Logbook pages", cmdlen) + "lp");
@@ -1452,23 +1492,23 @@ namespace QRZConsole
                 }
             }
 
-            if (e.KeyCode == Keys.Up)
-            {
-                if (!txtMonitor.Focused)
-                {
-                    txtMonitor.Focus();
-                    SendKeys.Send("{UP}");
-                }
-            }
+            //if (e.KeyCode == Keys.Up)
+            //{
+            //    if (!txtMonitor.Focused)
+            //    {
+            //        txtMonitor.Focus();
+            //        SendKeys.Send("{UP}");
+            //    }
+            //}
 
-            if (e.KeyCode == Keys.Down)
-            {
-                if (!txtMonitor.Focused)
-                {
-                    txtMonitor.Focus();
-                    SendKeys.Send("{DOWN}");
-                }
-            }
+            //if (e.KeyCode == Keys.Down)
+            //{
+            //    if (!txtMonitor.Focused)
+            //    {
+            //        txtMonitor.Focus();
+            //        SendKeys.Send("{DOWN}");
+            //    }
+            //}
 
         }
 
@@ -1762,12 +1802,12 @@ namespace QRZConsole
                 {
                     if (txtCommand.SelectionStart == 3)
                     {
-                        if (!string.IsNullOrEmpty(lastQRZ))
-                        {
-                            txtCommand.Text = txtCommand.Text + lastQRZ + " " + lastFreq + " " + lastMode + " " + DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm");
-                            txtCommand.SelectionStart = 3;
-                            txtCommand.SelectionLength = lastQRZ.Length;
-                        }
+                        if (string.IsNullOrEmpty(lastQRZ))
+                            lastQRZ = "[CALL]";
+
+                        txtCommand.Text = txtCommand.Text + lastQRZ + " " + lastFreq + " " + lastMode + " " + DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm");
+                        txtCommand.SelectionStart = 3;
+                        txtCommand.SelectionLength = lastQRZ.Length;
                     }
                 }
             }
@@ -1842,6 +1882,7 @@ namespace QRZConsole
 
 
             }
+
         }
     }
 }
