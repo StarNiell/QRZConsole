@@ -399,9 +399,9 @@ namespace QRZConsole
         {
             if (mode != "")
             {
-                if ((mode.ToUpper() != "RAW") && (mode.ToUpper() != "TEXT"))
+                if ((mode.ToUpper() != "RAW") && (mode.ToUpper() != "TEXT") && (mode.ToUpper() != "ADIF"))
                 {
-                    addMonitor($"Invalid View Mode! (mode is [raw] or [text])");
+                    addMonitor($"Invalid View Mode! (mode is [raw], [text] or [adif])");
                 }
                 else
                 {
@@ -427,8 +427,11 @@ namespace QRZConsole
             {
                 if (currentViewMode == "raw")
                     GetTableContenteRawView(currentPage);
-                else
+                else if (currentViewMode == "text")
                     GetTableContentTextView(currentPage);
+                else if (currentViewMode == "adif")
+                    GetTableContentAdifView(currentPage);
+
             }
 
         }
@@ -481,8 +484,7 @@ namespace QRZConsole
                     addMonitor($"************************************************************************************************");
                     addMonitor("");
                 }
-                else
-                    addMonitor("Found 0 entries");
+                addMonitor($"Found {lbentries.Count} entries");
             }
         }
 
@@ -560,8 +562,48 @@ namespace QRZConsole
                     addMonitor(headerLine);
 
                 }
-                else
-                    addMonitor("Found 0 entries");
+                addMonitor($"Found {lbentries.Count} entries");
+            }
+        }
+
+        
+        private void GetQSObyRangeADIF(int start, int end)
+        {
+            if (end == 0)
+                end = start;
+
+            addMonitor($"Get QSOs by range (ADIF): from position {start} to {end}... ");
+
+            List<LogbookEntry> lbentries = qrz.GetLogbookEntriesByRange(start, end);
+            if (lbentries != null)
+            {
+                if (lbentries.Count > 0)
+                {
+                    addMonitor("");
+                    foreach (LogbookEntry entry in lbentries)
+                    {
+                        string qsodate = entry.QSODateTime.ToString("yyyyMMdd");
+                        string qsotime = entry.QSODateTime.ToString("HHmmss");
+
+                        string rowText = "";
+                        rowText += $"<CALL:{entry.Call.Length}>{entry.Call}{Environment.NewLine}";
+                        rowText += $"   <BAND:{entry.Band.Length}>{entry.Band}{Environment.NewLine}";
+                        rowText += $"   <QSO_DATE:{qsodate.Length}>{qsodate}{Environment.NewLine}";
+                        rowText += $"   <TIME_ON:{qsotime.Length}>{qsotime}{Environment.NewLine}";
+                        rowText += $"   <FREQ:{entry.Frequency.Length}>{entry.Frequency}{Environment.NewLine}";
+                        rowText += $"   <MODE:{entry.Mode.Length}>{entry.Mode}{Environment.NewLine}";
+                        rowText += $"   <DXCC:{entry.DXCC.Length}>{entry.DXCC}{Environment.NewLine}";
+                        rowText += $"   <COUNTRY:{entry.Country.Length}>{entry.Country}{Environment.NewLine}";
+                        rowText += $"   <NAME:{entry.OperatorName.Length}>{entry.OperatorName}{Environment.NewLine}";
+                        rowText += $"   <GRIDSQUARE:{entry.GridLocator.Length}>{entry.GridLocator}{Environment.NewLine}";
+                        rowText += $"   <COMMENT:{(entry.Comments ?? "").Length}>{entry.Comments ?? ""}{Environment.NewLine}";
+                        rowText += $"<EOR>";
+
+                        addMonitor(rowText);
+                    }
+                }
+                addMonitor("");
+                addMonitor($"Found {lbentries.Count} entries");
             }
         }
 
@@ -735,8 +777,7 @@ namespace QRZConsole
                     }
                     addMonitor("");
                 }
-                else
-                    addMonitor("Found 0 entries");
+                addMonitor($"Found {lbentries.Count} entries");
             }
         }
 
@@ -814,8 +855,46 @@ namespace QRZConsole
                     addMonitor(headerLine);
 
                 }
-                else
-                    addMonitor("Found 0 entries");
+                addMonitor($"Found {lbentries.Count} entries");
+            }
+        }
+        private void GetTableContentAdifView(int page)
+        {
+            if (page < 1)
+                int.TryParse(txtLogbookPage.Text, out page);
+
+            addMonitor($"Get Table content ADIF of page {page}... ");
+
+            List<LogbookEntry> lbentries = qrz.GetLogbookPageContent(page);
+            if (lbentries != null)
+            {
+                if (lbentries.Count > 0)
+                {
+                    addMonitor("");
+                    foreach (LogbookEntry entry in lbentries)
+                    {
+                        string qsodate = entry.QSODateTime.ToString("yyyyMMdd");
+                        string qsotime = entry.QSODateTime.ToString("HHmmss");
+
+                        string rowText = "";
+                        rowText += $"<CALL:{entry.Call.Length}>{entry.Call}{Environment.NewLine}";
+                        rowText += $"   <BAND:{entry.Band.Length}>{entry.Band}{Environment.NewLine}";
+                        rowText += $"   <QSO_DATE:{qsodate.Length}>{qsodate}{Environment.NewLine}";
+                        rowText += $"   <TIME_ON:{qsotime.Length}>{qsotime}{Environment.NewLine}";
+                        rowText += $"   <FREQ:{entry.Frequency.Length}>{entry.Frequency}{Environment.NewLine}";
+                        rowText += $"   <MODE:{entry.Mode.Length}>{entry.Mode}{Environment.NewLine}";
+                        rowText += $"   <DXCC:{entry.DXCC.Length}>{entry.DXCC}{Environment.NewLine}";
+                        rowText += $"   <COUNTRY:{entry.Country.Length}>{entry.Country}{Environment.NewLine}";
+                        rowText += $"   <NAME:{entry.OperatorName.Length}>{entry.OperatorName}{Environment.NewLine}";
+                        rowText += $"   <GRIDSQUARE:{entry.GridLocator.Length}>{entry.GridLocator}{Environment.NewLine}";
+                        rowText += $"   <COMMENT:{(entry.Comments ?? "").Length}>{entry.Comments??""}{Environment.NewLine}";
+                        rowText += $"<EOR>";
+
+                        addMonitor(rowText);
+                    }
+                }
+                addMonitor("");
+                addMonitor($"Found {lbentries.Count} entries");
             }
         }
 
@@ -1172,6 +1251,9 @@ namespace QRZConsole
                     case "qr":
                         GetQSObyRangeTextRaw(iprm1, iprm2);
                         break;
+                    case "qa":
+                        GetQSObyRangeADIF(iprm1, iprm2);
+                        break;
                     case "aq":
                         if (prm6 != string.Empty)
                         {
@@ -1235,6 +1317,14 @@ namespace QRZConsole
                     case "ld":
                         GetLastData();
                         break;
+                    case "fc":
+                        if (prm1 != string.Empty)
+                        {
+                            string tmp = (cmd + " ");
+                            prm1 = command.Substring(tmp.Length, (command.Length - tmp.Length));
+                        }
+                        SearchDCXXByCountry(prm1);
+                        break;
                     case "qi":
                     case "exit":
                         this.Close();
@@ -1250,6 +1340,24 @@ namespace QRZConsole
 
             txtCommand.SelectAll();
             txtCommand.Focus();
+        }
+
+        private void SearchDCXXByCountry(string country)
+        {
+            addMonitor("Search DCXX by country...");
+            List<KeyValuePair<int, string>> clist = new List<KeyValuePair<int, string>>();
+
+            clist = QRZHelper.GetListDXCCByCountry(country);
+            if (clist.Count > 0)
+            {
+                foreach (KeyValuePair<int, string> c in clist)
+                {
+                    addMonitor($"{GetFixedString(c.Key.ToString().PadLeft(4), 4)} {c.Value}");
+                }
+                addMonitor("");
+            }
+            addMonitor($"Found {clist.Count} DXCC");
+
         }
 
         private void SwitchFullScreen()
@@ -1360,7 +1468,7 @@ namespace QRZConsole
             addMonitor(GetFixedString($"  QSO Count", cmdlen) + "qc");
             addMonitor(GetFixedString($"  Logbook pages", cmdlen) + "lp");
             addMonitor(GetFixedString($"  Get/Set QSO for page", cmdlen) + "qp [entries] (valid values: 5, 10, 15, 20, 25, 50, 100, 200)");
-            addMonitor(GetFixedString($"  Get/Set current view mode", cmdlen) + "cv [mode] (mode: [raw] or [text)");
+            addMonitor(GetFixedString($"  Get/Set current view mode", cmdlen) + "cv [mode] (mode: [raw], [text] OR [adif])");
             addMonitor(GetFixedString($"  Goto Page", cmdlen) + "gp [page]");
             addMonitor(GetFixedString($"  Page Down", cmdlen) + "pd");
             addMonitor(GetFixedString($"  Page Up", cmdlen) + "pu");
@@ -1372,6 +1480,8 @@ namespace QRZConsole
             addMonitor(GetFixedString($"  Get Table Content XML", cmdlen) + "tx [page]");
             addMonitor(GetFixedString($"  Get QSOs by range Text View", cmdlen) + "qt [start position] [end position]");
             addMonitor(GetFixedString($"  Get QSOs by range Text Raw", cmdlen) + "qr [start position] [end position]");
+            addMonitor(GetFixedString($"  Get QSOs by range ADIF", cmdlen) + "qa [start position] [end position]");
+            addMonitor(GetFixedString($"  Get QSOs by range ADIF", cmdlen) + "qa [start position] [end position]");
             addMonitor("Cluster DX:");
             addMonitor(GetFixedString($"  Open Cluster DX", cmdlen) + "dx");
             addMonitor(GetFixedString($"  Show DX on", cmdlen) + "sb [band] [items] (band example: [40m] [10m] or [hf] [vhf] [uhf])");
@@ -1379,8 +1489,9 @@ namespace QRZConsole
             addMonitor(GetFixedString($"  DXSpider command", cmdlen) + "dc [DXSpider command: http://www.dxcluster.org/main/usermanual_en-12.html]");
             addMonitor(GetFixedString($"  Send Spot", cmdlen) + "ss [call] [freq] [comment]");
             addMonitor(GetFixedString($"  Close Cluster DX", cmdlen) + "cc");
-            addMonitor("General:");
+            addMonitor("General/Utility:");
             addMonitor(GetFixedString($"  Clear Monitor", cmdlen) + "cl");
+            addMonitor(GetFixedString($"  Find DXCC Countries", cmdlen) + "fc [search]");
             addMonitor(GetFixedString($"  Switch View", cmdlen) + "sw");
             addMonitor(GetFixedString($"  Switch Check Is Logged at startup", cmdlen) + "sc");
             addMonitor(GetFixedString($"  Switch screen (normal/fullsize)", cmdlen) + "fs");

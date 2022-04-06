@@ -1181,7 +1181,12 @@ namespace QRZLibrary
                                     currCol++;
                                 }
                                 if (lbrow.position > 0)
+                                {
+                                    lbrow.DXCC = string.Empty;
+                                    if (!string.IsNullOrEmpty(lbrow.Country))
+                                        lbrow.DXCC = QRZHelper.GetDXCCByCountry(lbrow.Country);
                                     ret.Add(lbrow);
+                                }
                             }
                         }
                     }
@@ -1291,7 +1296,12 @@ namespace QRZLibrary
                                                         currCol++;
                                                     }
                                                     if (lbrow.position > 0)
+                                                    {
+                                                        lbrow.DXCC = string.Empty;
+                                                        if (!string.IsNullOrEmpty(lbrow.Country))
+                                                            lbrow.DXCC = QRZHelper.GetDXCCByCountry(lbrow.Country);
                                                         ret.Add(lbrow);
+                                                    }
                                                 }
                                                 if (curPos > end)
                                                     break;

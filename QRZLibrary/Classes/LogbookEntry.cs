@@ -16,6 +16,7 @@ namespace QRZLibrary.Classes
         public string Frequency { get; set; }
         public string Mode { get; set; }
         public string GridLocator { get; set; }
+        public string DXCC { get; set; }
         public string Country { get; set; }
         public string OperatorName { get; set; }
         public string Comments { get; set; }
