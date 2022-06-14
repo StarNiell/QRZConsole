@@ -21,5 +21,6 @@ namespace QRZLibrary.Classes
         public string OperatorName { get; set; }
         public string Comments { get; set; }
         public bool Confirmed { get; set;  }
+        public bool LoTWSent { get; set;  }
     }
 }

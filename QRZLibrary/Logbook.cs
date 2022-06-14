@@ -662,9 +662,11 @@ namespace QRZLibrary
             {
                 bOK = false;
                 HtmlElement start_date = wb.Document.GetElementById("start_date");
-                if (start_date != null)
+                HtmlElement end_date = wb.Document.GetElementById("end_date");
+                if (start_date != null && end_date != null)
                 {
                     start_date.SetAttribute("value", date);
+                    end_date.SetAttribute("value", date);
                     bOK = true;
                 }
             }
@@ -678,9 +680,11 @@ namespace QRZLibrary
             {
                 bOK = false;
                 HtmlElement start_time = wb.Document.GetElementById("start_time");
-                if (start_time != null)
+                HtmlElement end_time = wb.Document.GetElementById("end_time");
+                if (start_time != null && end_time != null)
                 {
                     start_time.SetAttribute("value", time);
+                    end_time.SetAttribute("value", time);
                     bOK = true;
                 }
             }
@@ -832,6 +836,7 @@ namespace QRZLibrary
                                 ExecuteScript("showqem");
                                 entry.QRZ = csdata.Children[0].OuterText.Trim();
                                 entry.DXCC = csdata.Children[1].OuterHtml.Substring(csdata.Children[1].OuterHtml.IndexOf("?dxcc=") + 6, 3);
+                                entry.DXCC = Regex.Match(entry.DXCC, @"\d+").Value;
                                 entry.Country = csdata.Children[1].OuterText.Trim();
                                 if (csdata.Children[3].Children.Count > 0)
                                     entry.Name = csdata.Children[3].Children[0].OuterText?.Trim();
@@ -843,6 +848,39 @@ namespace QRZLibrary
                                     entry.Address3 = rawArray.Length > 3 ? rawArray[3] : String.Empty;
                                 }
                                 entry.Email = (csdata.Children[5].OuterText != null) ? csdata.Children[5].OuterText.Replace("Email: ", "") : string.Empty;
+
+                                HtmlElement detbox = wb.Document.GetElementById("dt");
+                                if (detbox != null)
+                                {
+                                    HtmlElementCollection rows = detbox.GetElementsByTagName("TR");
+
+                                    foreach (HtmlElement row in rows)
+                                    {
+                                        HtmlElementCollection cols = row.GetElementsByTagName("TD");
+                                        foreach (HtmlElement cell in cols)
+                                        {
+                                            switch(cell.InnerText)
+                                            {
+                                                case "Grid Square":
+                                                    entry.GridSquare = cell.NextSibling.InnerText;
+                                                    break;
+                                                case "Lookups":
+                                                    entry.Lookups = cell.NextSibling.InnerText;
+                                                    break;
+                                                case "Distance":
+                                                    entry.Distance = cell.NextSibling.InnerText;
+                                                    break;
+                                                case "US State":
+                                                    entry.UsState = cell.NextSibling.InnerText;
+                                                    break;
+                                                case "US County":
+                                                    entry.UsCounty = cell.NextSibling.InnerText;
+                                                    break;
+                                            }
+                                        }
+                                        
+                                    }
+                                }
                             }
                         }
                         else
@@ -1133,6 +1171,7 @@ namespace QRZLibrary
                             {
                                 LogbookEntry lbrow = new LogbookEntry();
                                 HtmlElementCollection cols = row.GetElementsByTagName("TD");
+                                lbrow.LoTWSent = row.GetAttribute("className").Contains("lotw_sent");
                                 int currCol = 0;
                                 string tmp = string.Empty;
                                 string DateTimeStr = string.Empty;
@@ -1232,7 +1271,7 @@ namespace QRZLibrary
                                             HtmlElementCollection rows = tbody.GetElementsByTagName("TR");
                                             foreach (HtmlElement row in rows)
                                             {
-
+                                                
                                                 int curPos = QRZHelper.GetIntByStringOrNegative(row.GetAttribute("data-pos"));
                                                 if (curPos >= 0)
                                                     curPos++;
@@ -1246,6 +1285,7 @@ namespace QRZLibrary
                                                     //int curPos = -1;
                                                     string tmp = string.Empty;
                                                     string DateTimeStr = string.Empty;
+                                                    lbrow.LoTWSent = row.GetAttribute("className").Contains("lotw_sent");
                                                     foreach (HtmlElement cell in cols)
                                                     {
                                                         switch (colnames[currCol].Id)

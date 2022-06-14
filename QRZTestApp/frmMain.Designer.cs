@@ -29,6 +29,7 @@ namespace QRZConsole
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(frmMain));
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
             this.btnSwitchView = new System.Windows.Forms.Button();
             this.txtCommand = new System.Windows.Forms.TextBox();
@@ -497,6 +498,7 @@ namespace QRZConsole
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(940, 691);
             this.Controls.Add(this.splitContainer1);
+            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.KeyPreview = true;
             this.MinimumSize = new System.Drawing.Size(956, 726);
             this.Name = "frmMain";

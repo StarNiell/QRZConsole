@@ -16,6 +16,12 @@ namespace QRZLibrary.Classes
         private string _address2 = string.Empty;
         private string _address3 = string.Empty;
         private string _email = string.Empty;
+        private string _gridSquare = string.Empty;
+        private string _lookups = string.Empty;
+        private string _distance = string.Empty;
+        private string _usState = string.Empty;
+        private string _usCountry = string.Empty;
+
 
         public string QRZ { get => _qRZ; set => _qRZ = value; }
         public string Country { get => _country; set => _country = value; }
@@ -25,5 +31,10 @@ namespace QRZLibrary.Classes
         public string Address2 { get => _address2; set => _address2 = value; }
         public string Address3 { get => _address3; set => _address3 = value; }
         public string Email { get => _email; set => _email = value; }
+        public string GridSquare { get => _gridSquare; set => _gridSquare = value; }
+        public string Lookups { get => _lookups; set => _lookups = value; }
+        public string Distance { get => _distance; set => _distance = value; }
+        public string UsState { get => _usState; set => _usState = value; }
+        public string UsCounty { get => _usCountry; set => _usCountry = value; }
     }
 }

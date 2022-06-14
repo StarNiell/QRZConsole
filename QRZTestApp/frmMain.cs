@@ -45,7 +45,8 @@ namespace QRZConsole
         private int splitterExpand = 225;
         private int splittercompress = 25;
         private int pixelsResize = 2;
-
+        private bool SendCompletedRequest = false;
+        private bool ClusterDXReconnectPending = false;
         public frmMain()
         {
             InitializeComponent();
@@ -240,14 +241,22 @@ namespace QRZConsole
                 addMonitor($"Lookup {QRZtoSearch}...");
                 LookupEntry entry = qrz.ExecQuery(QRZtoSearch);
                 addMonitor($"Resut = --->");
-                addMonitor($"   QRZ       = {entry.QRZ}");
-                addMonitor($"   DXCC      = {entry.DXCC}");
-                addMonitor($"   Country   = {entry.Country}");
-                addMonitor($"   Name      = {entry.Name}");
-                addMonitor($"   Address 1 = {entry.Address1}");
-                addMonitor($"   Address 2 = {entry.Address2}");
-                addMonitor($"   Address 3 = {entry.Address3}");
-                addMonitor($"   Email     = {entry.Email}");
+                addMonitor($"   QRZ         = {entry.QRZ}");
+                addMonitor($"   Name        = {entry.Name}");
+                addMonitor($"   DXCC        = {entry.DXCC}");
+                addMonitor($"   Country     = {entry.Country}");
+                addMonitor($"   Grid Square = {entry.GridSquare}");
+                addMonitor($"   Address 1   = {entry.Address1}");
+                addMonitor($"   Address 2   = {entry.Address2}");
+                if (!string.IsNullOrEmpty(entry.Address3))
+                    addMonitor($"   Address 3   = {entry.Address3}");
+                if (!string.IsNullOrEmpty(entry.UsState))
+                    addMonitor($"   US State    = {entry.UsState}");
+                if (!string.IsNullOrEmpty(entry.UsCounty))
+                    addMonitor($"   US County   = {entry.UsCounty}");
+                if (!string.IsNullOrEmpty(entry.Distance))
+                    addMonitor($"   Distance    = {entry.Distance}");
+                addMonitor($"   Email       = {entry.Email}");
                 addMonitor($"------------------------------------");
             }
             else
@@ -500,7 +509,7 @@ namespace QRZConsole
             {
                 if (lbentries.Count > 0)
                 {
-                    string headerLine = new string('-', 223);
+                    string headerLine = new string('-', 229);
                     addMonitor("");
                     addMonitor(headerLine);
 
@@ -527,6 +536,8 @@ namespace QRZConsole
                     headerText += GetFixedString("Comments", 50);
                     headerText += " |";
                     headerText += "Confirmed";
+                    headerText += " | ";
+                    headerText += "LoTw";
                     headerText += " | ";
                     addMonitor(headerText);
                     addMonitor(headerLine);
@@ -556,6 +567,8 @@ namespace QRZConsole
                         rowText += GetFixedString(entry.Comments, 50);
                         rowText += " |";
                         rowText += entry.Confirmed ? "    *    " : "         ";
+                        rowText += " | ";
+                        rowText += entry.LoTWSent ? "  * " : "    ";
                         rowText += " | ";
                         addMonitor(rowText);
                     }
@@ -747,6 +760,8 @@ namespace QRZConsole
                     headerText += "Comments";
                     headerText += "\t";
                     headerText += "Confirmed";
+                    headerText += "\t";
+                    headerText += "LoTW";
                     addMonitor(headerText);
 
                     foreach (LogbookEntry entry in lbentries)
@@ -773,6 +788,8 @@ namespace QRZConsole
                         rowText += entry.Comments;
                         rowText += "\t";
                         rowText += entry.Confirmed ? "*" : "";
+                        rowText += "\t";
+                        rowText += entry.LoTWSent ? "*" : "";
                         addMonitor(rowText);
                     }
                     addMonitor("");
@@ -793,7 +810,7 @@ namespace QRZConsole
             {
                 if (lbentries.Count > 0)
                 {
-                    string headerLine = new string('-', 217);
+                    string headerLine = new string('-', 223);
                     addMonitor("");
                     addMonitor(headerLine);
 
@@ -821,6 +838,8 @@ namespace QRZConsole
                     headerText += " | ";
                     headerText += GetFixedString("Comments", 50);
                     headerText += " |";
+                    headerText += "LoTW";
+                    headerText += " | ";
                     addMonitor(headerText);
                     addMonitor(headerLine);
 
@@ -850,6 +869,8 @@ namespace QRZConsole
                         rowText += " | ";
                         rowText += GetFixedString(entry.Comments, 50);
                         rowText += " |";
+                        rowText += entry.LoTWSent ? "  * " : "    ";
+                        rowText += " | ";
                         addMonitor(rowText);
                     }
                     addMonitor(headerLine);
@@ -983,6 +1004,8 @@ namespace QRZConsole
             int dataLen = 20;
             addMonitor("Last data in memory:");
             addMonitor(GetFixedString($"  QRZ", dataLen) + lastQRZ);
+            addMonitor(GetFixedString($"  Freq.", dataLen) + lastFreq);
+            addMonitor(GetFixedString($"  Mode", dataLen) + lastMode);
         }
 
         private void btnOrderDateAsc_Click(object sender, EventArgs e)
@@ -1047,24 +1070,30 @@ namespace QRZConsole
 
             if (e.KeyCode == Keys.Up)
             {
-                if ((cmdHistoryIndex + 1) <= cmdHistory.Count && cmdHistoryIndex > 0)
+                if (cmdHistory.Count > 0)
                 {
-                    cmdHistoryIndex--;
+                    if ((cmdHistoryIndex + 1) <= cmdHistory.Count && cmdHistoryIndex > 0)
+                    {
+                        cmdHistoryIndex--;
+                    }
+                    txtCommand.Text = cmdHistory.ElementAt(cmdHistoryIndex);
+                    e.SuppressKeyPress = true;
+                    txtCommand.SelectAll();
                 }
-                txtCommand.Text = cmdHistory.ElementAt(cmdHistoryIndex);
-                e.SuppressKeyPress = true;
-                txtCommand.SelectAll();
             }
 
             if (e.KeyCode == Keys.Down)
             {
-                if ((cmdHistoryIndex + 1) < cmdHistory.Count)
+                if (cmdHistory.Count > 0)
                 {
-                    cmdHistoryIndex++;
+                    if ((cmdHistoryIndex + 1) < cmdHistory.Count)
+                    {
+                        cmdHistoryIndex++;
+                    }
+                    txtCommand.Text = cmdHistory.ElementAt(cmdHistoryIndex);
+                    e.SuppressKeyPress = true;
+                    txtCommand.SelectAll();
                 }
-                txtCommand.Text = cmdHistory.ElementAt(cmdHistoryIndex);
-                e.SuppressKeyPress = true;
-                txtCommand.SelectAll();
             }
 
         }
@@ -1302,6 +1331,9 @@ namespace QRZConsole
                     case "sb":
                         ClusterDxSelectBand(prm1, iprm2);
                         break;
+                    case "sf":
+                        ClusterDxSelectBand(prm1 + "/" + prm1, iprm2);
+                        break;
                     case "ds":
                         ClusterDxSearchCallsign(prm1);
                         break;
@@ -1481,10 +1513,10 @@ namespace QRZConsole
             addMonitor(GetFixedString($"  Get QSOs by range Text View", cmdlen) + "qt [start position] [end position]");
             addMonitor(GetFixedString($"  Get QSOs by range Text Raw", cmdlen) + "qr [start position] [end position]");
             addMonitor(GetFixedString($"  Get QSOs by range ADIF", cmdlen) + "qa [start position] [end position]");
-            addMonitor(GetFixedString($"  Get QSOs by range ADIF", cmdlen) + "qa [start position] [end position]");
             addMonitor("Cluster DX:");
             addMonitor(GetFixedString($"  Open Cluster DX", cmdlen) + "dx");
-            addMonitor(GetFixedString($"  Show DX on", cmdlen) + "sb [band] [items] (band example: [40m] [10m] or [hf] [vhf] [uhf])");
+            addMonitor(GetFixedString($"  Show DX on Band", cmdlen) + "sb [band] [items] (band example: [40m] [10m] or [hf] [vhf] [uhf])");
+            addMonitor(GetFixedString($"  Show DX on Freq", cmdlen) + "sf [freq] [items] (freq example: [7155] [14200] ...)");
             addMonitor(GetFixedString($"  Search Callsign on Cluster DX", cmdlen) + "ds [callsign]");
             addMonitor(GetFixedString($"  DXSpider command", cmdlen) + "dc [DXSpider command: http://www.dxcluster.org/main/usermanual_en-12.html]");
             addMonitor(GetFixedString($"  Send Spot", cmdlen) + "ss [call] [freq] [comment]");
@@ -1672,8 +1704,11 @@ namespace QRZConsole
         #region ClusterDX
         private void Ws_SendComplete(object sender, WinsockSendEventArgs e)
         {
-            if (ClusterDebug)
-                addMonitor($"CLuester DX Send Complete");
+            if (SendCompletedRequest)
+            {
+                addMonitor($"Cluster DX Send Complete");
+                SendCompletedRequest = false;
+            }
         }
 
         private void Ws_DataArrival(object sender, WinsockDataArrivalEventArgs e)
@@ -1696,7 +1731,14 @@ namespace QRZConsole
             {
                 clusterConnected = (dataArrival.IndexOf("WX disabled for ") >= 0);
                 if (clusterConnected)
+                {
                     addMonitor("Cluster DX Logged ln");
+                    if (ClusterDXReconnectPending)
+                    {
+                        ClusterDXReconnectPending = false;
+                        elabCommand(txtCommand.Text);
+                    }
+                }
             }
 
 
@@ -1710,7 +1752,16 @@ namespace QRZConsole
 
         private void Ws_ErrorReceived(object sender, WinsockErrorReceivedEventArgs e)
         {
-            addMonitor($"#Error: {e.Message}");
+            if (e.ErrorCode == System.Net.Sockets.SocketError.TimedOut)
+            {
+                addMonitor($"Cluster DX Timeout... try to reconnect");
+                ClusterDXReconnectPending = true;
+                ClusterDxOpen("", "");
+            }
+            else
+            {
+                addMonitor($"#Error: {e.Message}");
+            }
         }
 
         private void Ws_Connected(object sender, WinsockConnectedEventArgs e)
@@ -1803,6 +1854,7 @@ namespace QRZConsole
                 if (qrzToSpot != "" && freq != "")
                 {
                     addMonitor($"Send spot to {qrzToSpot} on freq {freq}");
+                    SendCompletedRequest = true;
                     Send($"DX {qrzToSpot} {freq} {comment}");
                 }
                 else
@@ -1867,7 +1919,6 @@ namespace QRZConsole
             Thread.Sleep(50);
             Send("unset/wx");
             Thread.Sleep(50);
-
         }
 
         private void Send(string request)
@@ -1911,12 +1962,24 @@ namespace QRZConsole
             {
                 if (txtCommand.Text.Substring(0, 3).ToUpper() == "AQ ")
                 {
-                    if (txtCommand.SelectionStart == 3)
+                    if (txtCommand.SelectionStart == 3 && txtCommand.Text.Length == 3)
                     {
                         if (string.IsNullOrEmpty(lastQRZ))
                             lastQRZ = "[CALL]";
 
                         txtCommand.Text = txtCommand.Text + lastQRZ + " " + lastFreq + " " + lastMode + " " + DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm");
+                        txtCommand.SelectionStart = 3;
+                        txtCommand.SelectionLength = lastQRZ.Length;
+                    }
+                }
+                else if (txtCommand.Text.Substring(0, 3).ToUpper() == "SS ")
+                {
+                    if (txtCommand.SelectionStart == 3 && txtCommand.Text.Length == 3)
+                    {
+                        if (string.IsNullOrEmpty(lastQRZ))
+                            lastQRZ = "[CALL]";
+
+                        txtCommand.Text = txtCommand.Text + lastQRZ + " " + lastFreq;
                         txtCommand.SelectionStart = 3;
                         txtCommand.SelectionLength = lastQRZ.Length;
                     }
@@ -1956,7 +2019,8 @@ namespace QRZConsole
                                 startPos++;
 
                             txtCommand.SelectionStart = startPos;
-                            txtCommand.SelectionLength = (nextSpace - startPos);
+                            if (nextSpace >= startPos)
+                                txtCommand.SelectionLength = (nextSpace - startPos);
                         }
                     }
                 }
@@ -1984,7 +2048,14 @@ namespace QRZConsole
                             if (startPos < 0)
                                 startPos = txtCommand.TextLength;
 
-                            txtCommand.SelectionStart = nextSpace + 1;
+                            if (nextSpace > 0)
+                                txtCommand.SelectionStart = nextSpace + 1;
+                            else
+                            {
+                                txtCommand.SelectionStart = nextSpace;
+                                startPos++;
+                            }
+
                             txtCommand.SelectionLength = (startPos - nextSpace - 1);
                         }
                     }
