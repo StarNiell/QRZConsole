@@ -222,6 +222,14 @@ namespace QRZConsole
             lastQRZ = QRZtoSearch;
         }
 
+        private void SetCurrentQRZ(string QRZ)
+        {
+            SaveRegKey("lookup", QRZ);
+            lastQRZ = QRZ;
+            addMonitor("");
+            addMonitor($"Current QRZ: {QRZ}");
+        }
+
         private void Lookup(string QRZtoSearch = "")
         {
             if (QRZtoSearch != "")
@@ -357,6 +365,7 @@ namespace QRZConsole
             txtUsername.Text = GetRegKeyValue("username");
             txtPassword.Text = GetRegKeyValue("password");
             txtQRZLookup.Text = GetRegKeyValue("lookup");
+            lastFreq = GetRegKeyValue("lastFreq");
             lastQRZ = txtQRZLookup.Text;
             if (!string.IsNullOrEmpty(GetRegKeyValue("currentViewMode")))
                 currentViewMode = GetRegKeyValue("currentViewMode");
@@ -617,6 +626,21 @@ namespace QRZConsole
                 }
                 addMonitor("");
                 addMonitor($"Found {lbentries.Count} entries");
+            }
+        }
+
+        private void SetCurrentFreq(string freq)
+        {
+            if (freq.Length > 3)
+            {
+                if (freq.IndexOf(".") < 0)
+                {
+                    freq = freq.Insert(freq.Length - 3, ".");
+                }
+                lastFreq = freq;
+                SaveRegKey("lastFreq", freq);
+                addMonitor("");
+                addMonitor($"Current Frequency: {freq}");
             }
         }
 
@@ -1215,6 +1239,9 @@ namespace QRZConsole
                     case "lu":
                         Lookup(prm1);
                         break;
+                    case "qq":
+                        SetCurrentQRZ(prm1);
+                        break;
                     case "cw":
                         GetWorked(prm1);
                         break;
@@ -1290,6 +1317,9 @@ namespace QRZConsole
                             prm6 = command.Substring(tmp.Length, (command.Length - tmp.Length));
                         }
                         AddQSO(prm1, prm2, prm3, prm4, prm5, prm6);
+                        break;
+                    case "ff":
+                        SetCurrentFreq(prm1);
                         break;
                     case "eq":
                         if (prm7 != string.Empty)
@@ -1524,6 +1554,8 @@ namespace QRZConsole
             addMonitor("General/Utility:");
             addMonitor(GetFixedString($"  Clear Monitor", cmdlen) + "cl");
             addMonitor(GetFixedString($"  Find DXCC Countries", cmdlen) + "fc [search]");
+            addMonitor(GetFixedString($"  Set current Frequency", cmdlen) + "ff [freq]");
+            addMonitor(GetFixedString($"  Set current QRZ", cmdlen) + "qq [qrz]");
             addMonitor(GetFixedString($"  Switch View", cmdlen) + "sw");
             addMonitor(GetFixedString($"  Switch Check Is Logged at startup", cmdlen) + "sc");
             addMonitor(GetFixedString($"  Switch screen (normal/fullsize)", cmdlen) + "fs");
