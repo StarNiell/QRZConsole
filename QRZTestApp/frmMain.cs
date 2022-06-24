@@ -13,6 +13,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Winsock_Orcas;
+using Newtonsoft.Json;
 
 namespace QRZConsole
 {
@@ -47,6 +48,10 @@ namespace QRZConsole
         private int pixelsResize = 2;
         private bool SendCompletedRequest = false;
         private bool ClusterDXReconnectPending = false;
+
+        private List<KeyValuePair<string, bool>> Locators = new List<KeyValuePair<string, bool>>();
+
+
         public frmMain()
         {
             InitializeComponent();
@@ -148,6 +153,20 @@ namespace QRZConsole
             GotoLogbook();
         }
 
+        private void LoadLocators()
+        {
+            addMonitor($"Load Grid Locators Worked... It can take a long time");
+            Locators = qrz.GetLocatorWorked();
+            addMonitor($"Total Grid Locators Worked      = {Locators.Count.ToString()}");
+            addMonitor($"Total Grid Locators Confirmed   = {Locators.Where(x => x.Value).Count().ToString()}");
+            addMonitor($"Total Grid Locators Unconfirmed = {Locators.Where(x => !x.Value).Count().ToString()}");
+
+            string locatorsSerialized = Newtonsoft.Json.JsonConvert.SerializeObject(Locators);
+
+            SaveRegKey($"{txtUsername.Text}_Locators", locatorsSerialized);
+
+        }
+
         private void GotoLogbook()
         {
             addMonitor($"Load Logbook...");
@@ -212,6 +231,50 @@ namespace QRZConsole
             }
         }
 
+        private void GetLocators(string prm1 = "", string prm2 = "")
+        {
+            string Loc = string.Empty;
+            string uc = string.Empty;
+            
+            if (prm1 != "")
+                Loc = prm1.ToUpper().Trim();
+
+            if (prm2 != "")
+                uc = prm2.Trim();
+
+            List<KeyValuePair<string, bool>> LocatorsFiltered = Locators;
+
+            if (Loc != "" && Loc != "*")
+            {
+                LocatorsFiltered = Locators.Where(x => x.Key.StartsWith(Loc)).ToList();
+            }
+
+            if (uc.Equals("c"))
+            {
+                LocatorsFiltered = LocatorsFiltered.Where(x => x.Value).ToList();
+            }
+
+            if (uc.Equals("u"))
+            {
+                LocatorsFiltered = LocatorsFiltered.Where(x => !x.Value).ToList();
+            }
+
+            if (LocatorsFiltered.Count > 0)
+            {
+                foreach (KeyValuePair<string, bool> l in LocatorsFiltered)
+                {
+                    string confirmed = l.Value ? "Confirmed" : "Unconfirmed";
+                    addMonitor($"{l.Key}   {confirmed}");
+                }
+                addMonitor("");
+                addMonitor($"{LocatorsFiltered.Count} Items found");
+            }
+            else
+            {
+                addMonitor("0 items Found (try to load your Grid Locator List Worked using the [lc] command)");
+            }
+        }
+
         private void btnLookup_Click(object sender, EventArgs e)
         {
             string QRZtoSearch = txtQRZLookup.Text;
@@ -245,26 +308,48 @@ namespace QRZConsole
                 SaveRegKey("lookup", QRZtoSearch);
                 txtQRZLookup.Text = QRZtoSearch;
 
+                string LocatorWorked = string.Empty;
+                string LocToSearch = string.Empty;
+
                 addMonitor("");
                 addMonitor($"Lookup {QRZtoSearch}...");
                 LookupEntry entry = qrz.ExecQuery(QRZtoSearch);
+
+                if (!string.IsNullOrEmpty(entry.GridSquare))
+                {
+                    if (entry.GridSquare.Length >= 4)
+                    {
+                        LocToSearch = entry.GridSquare.Substring(0, 4);
+                        if (Locators.Count > 0)
+                        {
+                            var l = Locators.Where(x => x.Key == LocToSearch)?.FirstOrDefault();
+                            if (l.Value.Key != null)
+                            {
+                                string tmp = (l.Value.Value ? "Confirmed" : "Unconfirmed");
+                                LocatorWorked = $"  (Worked and {tmp})";
+                            }
+                        }
+                    }
+                    
+                }
+
                 addMonitor($"Resut = --->");
-                addMonitor($"   QRZ         = {entry.QRZ}");
-                addMonitor($"   Name        = {entry.Name}");
-                addMonitor($"   DXCC        = {entry.DXCC}");
-                addMonitor($"   Country     = {entry.Country}");
-                addMonitor($"   Grid Square = {entry.GridSquare}");
-                addMonitor($"   Address 1   = {entry.Address1}");
-                addMonitor($"   Address 2   = {entry.Address2}");
+                addMonitor($"   QRZ          = {entry.QRZ}");
+                addMonitor($"   Name         = {entry.Name}");
+                addMonitor($"   DXCC         = {entry.DXCC}");
+                addMonitor($"   Country      = {entry.Country}");
+                addMonitor($"   Grid Locator = {entry.GridSquare} {LocatorWorked}");
+                addMonitor($"   Address 1    = {entry.Address1}");
+                addMonitor($"   Address 2    = {entry.Address2}");
                 if (!string.IsNullOrEmpty(entry.Address3))
-                    addMonitor($"   Address 3   = {entry.Address3}");
+                    addMonitor($"   Address 3    = {entry.Address3}");
                 if (!string.IsNullOrEmpty(entry.UsState))
-                    addMonitor($"   US State    = {entry.UsState}");
+                    addMonitor($"   US State     = {entry.UsState}");
                 if (!string.IsNullOrEmpty(entry.UsCounty))
-                    addMonitor($"   US County   = {entry.UsCounty}");
+                    addMonitor($"   US County    = {entry.UsCounty}");
                 if (!string.IsNullOrEmpty(entry.Distance))
-                    addMonitor($"   Distance    = {entry.Distance}");
-                addMonitor($"   Email       = {entry.Email}");
+                    addMonitor($"   Distance     = {entry.Distance}");
+                addMonitor($"   Email        = {entry.Email}");
                 addMonitor($"------------------------------------");
             }
             else
@@ -369,6 +454,12 @@ namespace QRZConsole
             lastQRZ = txtQRZLookup.Text;
             if (!string.IsNullOrEmpty(GetRegKeyValue("currentViewMode")))
                 currentViewMode = GetRegKeyValue("currentViewMode");
+
+            string LocatorsList = (GetRegKeyValue($"{txtUsername.Text}_Locators"));
+            if (LocatorsList != "")
+            {
+                Locators = JsonConvert.DeserializeObject<List<KeyValuePair<string, bool>>>(LocatorsList);
+            }
 
             this.Show();
 
@@ -633,11 +724,7 @@ namespace QRZConsole
         {
             if (freq.Length > 3)
             {
-                if (freq.IndexOf(".") < 0)
-                {
-                    freq = freq.Insert(freq.Length - 3, ".");
-                }
-                lastFreq = freq;
+                lastFreq = freq.Replace(".", "");
                 SaveRegKey("lastFreq", freq);
                 addMonitor("");
                 addMonitor($"Current Frequency: {freq}");
@@ -665,7 +752,7 @@ namespace QRZConsole
                 {
                     lastMode = mode;
                     lastQRZ = qrzToAdd;
-                    lastFreq = freq;
+                    lastFreq = freq.Replace(".", "");
                     addMonitor("QSO added succesfully!");
                 }
                 else
@@ -732,7 +819,7 @@ namespace QRZConsole
                 {
                     lastMode = mode;
                     lastQRZ = qrzToAdd;
-                    lastFreq = freq;
+                    lastFreq = lastFreq = freq.Replace(".", "");
                     addMonitor("QSO edited succesfully!");
                 }
                 else
@@ -1259,6 +1346,12 @@ namespace QRZConsole
                     case "lb":
                         GotoLogbook();
                         break;
+                    case "lc":
+                        LoadLocators();
+                        break;
+                    case "gl":
+                        GetLocators(prm1, prm2);
+                        break;
                     case "qc":
                         QSOCount();
                         break;
@@ -1362,6 +1455,10 @@ namespace QRZConsole
                         ClusterDxSelectBand(prm1, iprm2);
                         break;
                     case "sf":
+                        if (string.IsNullOrEmpty(prm1.Trim()))
+                        {
+                            prm1 = lastFreq;
+                        }
                         ClusterDxSelectBand(prm1 + "/" + prm1, iprm2);
                         break;
                     case "ds":
@@ -1554,6 +1651,8 @@ namespace QRZConsole
             addMonitor("General/Utility:");
             addMonitor(GetFixedString($"  Clear Monitor", cmdlen) + "cl");
             addMonitor(GetFixedString($"  Find DXCC Countries", cmdlen) + "fc [search]");
+            addMonitor(GetFixedString($"  Load Your Grid Locator", cmdlen) + "lc");
+            addMonitor(GetFixedString($"  Get Grid Locator List", cmdlen) + "gl [loc] [c or u] (example: gl [*] [c] - gl [EN70]");
             addMonitor(GetFixedString($"  Set current Frequency", cmdlen) + "ff [freq]");
             addMonitor(GetFixedString($"  Set current QRZ", cmdlen) + "qq [qrz]");
             addMonitor(GetFixedString($"  Switch View", cmdlen) + "sw");

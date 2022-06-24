@@ -46,7 +46,7 @@ namespace QRZLibrary
         public Logbook()
         {
             QRZHelper.initWBEdge11();
-            
+
             wb = new WebBrowser();
             wb.ScriptErrorsSuppressed = true;
             wb.DocumentCompleted += Wb_DocumentCompleted;
@@ -67,7 +67,8 @@ namespace QRZLibrary
 
         }
 
-        private void InjectAlertBlocker() { 
+        private void InjectAlertBlocker()
+        {
             HtmlElement head = wb.Document.GetElementsByTagName("head")[0];
             if (head != null)
             {
@@ -186,7 +187,7 @@ namespace QRZLibrary
                           || (wb.Url.OriginalString.Contains(_logbookUrl))
                           || (wb.Url.OriginalString.Contains(_lookupUrl));
             }
-                
+
             else
                 pageLoaded = GotoQrzHome();
 
@@ -244,7 +245,7 @@ namespace QRZLibrary
                         HtmlElement fullname = wb.Document.GetElementById("fullname");
                         if (fullname != null)
                         {
-                            stepDone = waitDone = ((fullname.InnerText??string.Empty) != "");
+                            stepDone = waitDone = ((fullname.InnerText ?? string.Empty) != "");
                         }
                         if (!waitDone)
                         {
@@ -345,7 +346,7 @@ namespace QRZLibrary
                                     ret = InvokeMemberAndWaitReload(link, "Click");
                                 }
                             }
-                            
+
                         }
                     }
 
@@ -376,7 +377,8 @@ namespace QRZLibrary
         {
             bool ret = false;
             ret = (!ForceReload && wb.Document != null && wb.Document?.GetElementById("tquery") != null);
-            if (!ret) {
+            if (!ret)
+            {
                 if (NavigateAndWait(LookupUrl))
                     ret = wb.Document.Title.Equals("QRZ Callsign Database Search by QRZ Ham Radio");
             }
@@ -401,7 +403,7 @@ namespace QRZLibrary
 
             if (StartAddCall(qrzToCall))
             {
-                if(SetQSOData(qrzToCall, freq, mode, date, time, comment))
+                if (SetQSOData(qrzToCall, freq, mode, date, time, comment))
                 {
                     Stopwatch stopwatch = new Stopwatch();
                     stopwatch.Start();
@@ -859,7 +861,7 @@ namespace QRZLibrary
                                         HtmlElementCollection cols = row.GetElementsByTagName("TD");
                                         foreach (HtmlElement cell in cols)
                                         {
-                                            switch(cell.InnerText)
+                                            switch (cell.InnerText)
                                             {
                                                 case "Grid Square":
                                                     entry.GridSquare = cell.NextSibling.InnerText;
@@ -878,7 +880,7 @@ namespace QRZLibrary
                                                     break;
                                             }
                                         }
-                                        
+
                                     }
                                 }
                             }
@@ -901,7 +903,7 @@ namespace QRZLibrary
             if (StartAddCall(QRZsearch))
             {
                 HtmlElement lblist = wb.Document.GetElementById("lblist");
-                if (lblist != null )
+                if (lblist != null)
                 {
                     HtmlElement seenBeforeTable = QRZHelper.GetElementByTagAndClassName(lblist, "table", "styledTable seenBeforeTable");
                     if (seenBeforeTable != null)
@@ -931,7 +933,7 @@ namespace QRZLibrary
                 HtmlElement rowsForPage = wb.Document.GetElementById("dispOpt_rpp");
                 if (rowsForPage != null)
                 {
-                    ret =  QRZHelper.GetIntByString(rowsForPage.GetAttribute("value"));
+                    ret = QRZHelper.GetIntByString(rowsForPage.GetAttribute("value"));
                 }
             }
             return ret;
@@ -952,7 +954,8 @@ namespace QRZLibrary
                 && entries != 200
                 )
                 msg = defaultMsg;
-            else {
+            else
+            {
                 if (GotoLogbook())
                 {
                     int currValue = -1;
@@ -1028,8 +1031,117 @@ namespace QRZLibrary
             return ret;
         }
 
+        public List<KeyValuePair<string, bool>> GetLocatorWorked()
+        {
+            List<KeyValuePair<string, bool>> ret = new List<KeyValuePair<string, bool>>();
+            if (GotoLogbook())
+            {
+                bool stepDone = false;
+                bool waitDone = false;
+                Stopwatch stopwatch = null;
 
-        
+                Debug.WriteLine("Load Award section...");
+                object[] o = new object[2];
+                o[0] = "awards";
+                o[1] = "";
+                wb.Document.InvokeScript("lb_go", o);
+
+                //wait for new step -----------
+                stopwatch = new Stopwatch();
+                stopwatch.Start();
+
+                while (!waitDone)
+                {
+                    HtmlElement container = wb.Document.GetElementById("container");
+                    stepDone = waitDone = (container != null);
+
+                    Application.DoEvents();
+                    Thread.Sleep(CpuSleep);
+                    if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
+                    {
+                        break;
+                    }
+                }
+
+                if (!stepDone)
+                {
+                    Debug.WriteLine("Unable load Award section...");
+                    return ret;
+                }
+
+                stepDone = false;
+                waitDone = false;
+                stopwatch = null;
+
+
+                Debug.WriteLine("Expand Award section...");
+                HtmlElementCollection elH3s = wb.Document.GetElementsByTagName("h3");
+
+                foreach (HtmlElement elH3 in elH3s)
+                {
+                    if (elH3.InnerText.Contains("Grid Squared Award"))
+                    {
+                        elH3.InvokeMember("click");
+                    }
+                }
+
+                //wait for new step -----------
+                stopwatch = new Stopwatch();
+                stopwatch.Start();
+
+                while (!waitDone)
+                {
+                    HtmlElement container = wb.Document.GetElementById("lbtab");
+                    stepDone = waitDone = (container != null);
+
+                    Application.DoEvents();
+                    Thread.Sleep(CpuSleep);
+                    if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
+                    {
+                        break;
+                    }
+                }
+
+                if (!stepDone)
+                {
+                    Debug.WriteLine("Unable expand Award section.");
+                    return ret;
+                }
+
+                Debug.WriteLine("Get W100 Award table...");
+
+                HtmlElement el1 = wb.Document.GetElementById("content-inside-4");
+                if (el1 != null)
+                {
+                    HtmlElement tblW100 = QRZHelper.GetElementByTagAndClassName(el1, "table", "w100");
+                    if (tblW100 != null)
+                    {
+                        HtmlElementCollection els = tblW100.GetElementsByTagName("tr");
+
+                        foreach (HtmlElement el in els)
+                        {
+                            if (!string.IsNullOrEmpty(el.Id))
+                            {
+                                if (el.Id.Contains("mainRow"))
+                                {
+                                    string locator = QRZHelper.GetElementByTagAndClassName(el, "span", "ptr lent").InnerText;
+                                    bool confirmed = (QRZHelper.GetElementByTagAndClassName(el, "td", "lstat").InnerText == "Confirmed");
+                                    ret.Add(new KeyValuePair<string, bool>(locator, confirmed));
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        Debug.WriteLine("Unable to locate W100 Award table.");
+                        return ret;
+                    }
+                }
+
+            }
+            return ret;
+        }
+
         public int GetLogbookPages(bool ForceReload = false)
         {
             int ret = -1;
@@ -1110,7 +1222,7 @@ namespace QRZLibrary
                     else
                         ret = page;
                 }
-                   
+
             }
             return ret;
         }
@@ -1152,7 +1264,7 @@ namespace QRZLibrary
 
         public List<LogbookEntry> GetLogbookPageContent(int page)
         {
-            
+
             List<LogbookEntry> ret = new List<LogbookEntry>();
             if (GotoLoogbookPage(page) == page)
             {
@@ -1271,7 +1383,7 @@ namespace QRZLibrary
                                             HtmlElementCollection rows = tbody.GetElementsByTagName("TR");
                                             foreach (HtmlElement row in rows)
                                             {
-                                                
+
                                                 int curPos = QRZHelper.GetIntByStringOrNegative(row.GetAttribute("data-pos"));
                                                 if (curPos >= 0)
                                                     curPos++;
