@@ -1289,44 +1289,46 @@ namespace QRZLibrary
                                 string DateTimeStr = string.Empty;
                                 foreach (HtmlElement cell in cols)
                                 {
+                                    string cellText = cell.InnerText ?? String.Empty;
+
                                     switch (colnames[currCol].Id)
                                     {
                                         case "th_lnum":
-                                            lbrow.position = QRZHelper.GetIntByString(cell.InnerText);
+                                            lbrow.position = QRZHelper.GetIntByString(cellText);
                                             break;
                                         case "th_date":
-                                            DateTimeStr = cell.InnerText;
+                                            DateTimeStr = cellText;
                                             break;
                                         case "th_time":
-                                            DateTimeStr += $" {cell.InnerText}";
+                                            DateTimeStr += $" {cellText}";
                                             lbrow.QSODateTime = QRZHelper.GetDateTimeByString(DateTimeStr);
                                             break;
                                         case "th_call2":
-                                            lbrow.Call = cell.InnerText;
+                                            lbrow.Call = cellText.Replace("Ø", "0");
                                             break;
                                         case "th_band1":
-                                            lbrow.Band = cell.InnerText;
+                                            lbrow.Band = cellText;
                                             break;
                                         case "th_freq2":
-                                            lbrow.Frequency = cell.InnerText;
+                                            lbrow.Frequency = cellText;
                                             break;
                                         case "th_mode2":
-                                            lbrow.Mode = cell.InnerText;
+                                            lbrow.Mode = cellText;
                                             break;
                                         case "th_grid2":
-                                            lbrow.GridLocator = cell.InnerText;
+                                            lbrow.GridLocator = cellText;
                                             break;
                                         case "th_country2":
-                                            lbrow.Country = cell.InnerText;
+                                            lbrow.Country = cellText;
                                             break;
                                         case "th_name2":
-                                            lbrow.OperatorName = cell.InnerText;
+                                            lbrow.OperatorName = cellText;
                                             break;
                                         case "th_comments":
-                                            lbrow.Comments = cell.InnerText;
+                                            lbrow.Comments = cellText;
                                             break;
                                         case "th_status":
-                                            lbrow.Confirmed = cell.InnerText.StartsWith("Confirmed");
+                                            lbrow.Confirmed = cellText.StartsWith("Confirmed");
                                             break;
                                     }
                                     currCol++;
@@ -1400,6 +1402,8 @@ namespace QRZLibrary
                                                     lbrow.LoTWSent = row.GetAttribute("className").Contains("lotw_sent");
                                                     foreach (HtmlElement cell in cols)
                                                     {
+                                                        string cellText = cell.InnerText ?? String.Empty;
+
                                                         switch (colnames[currCol].Id)
                                                         {
                                                             case "th_lnum":
@@ -1409,38 +1413,38 @@ namespace QRZLibrary
                                                                 lbrow.position = curPos;
                                                                 break;
                                                             case "th_date":
-                                                                DateTimeStr = cell.InnerText;
+                                                                DateTimeStr = cellText;
                                                                 break;
                                                             case "th_time":
-                                                                DateTimeStr += $" {cell.InnerText}";
+                                                                DateTimeStr += $" {cellText}";
                                                                 lbrow.QSODateTime = QRZHelper.GetDateTimeByString(DateTimeStr);
                                                                 break;
                                                             case "th_call2":
-                                                                lbrow.Call = cell.InnerText;
+                                                                lbrow.Call = cellText.Replace("Ø", "0");
                                                                 break;
                                                             case "th_band1":
-                                                                lbrow.Band = cell.InnerText;
+                                                                lbrow.Band = cellText;
                                                                 break;
                                                             case "th_freq2":
-                                                                lbrow.Frequency = cell.InnerText;
+                                                                lbrow.Frequency = cellText;
                                                                 break;
                                                             case "th_mode2":
-                                                                lbrow.Mode = cell.InnerText;
+                                                                lbrow.Mode = cellText;
                                                                 break;
                                                             case "th_grid2":
-                                                                lbrow.GridLocator = cell.InnerText;
+                                                                lbrow.GridLocator = cellText;
                                                                 break;
                                                             case "th_country2":
-                                                                lbrow.Country = cell.InnerText;
+                                                                lbrow.Country = cellText;
                                                                 break;
                                                             case "th_name2":
-                                                                lbrow.OperatorName = cell.InnerText;
+                                                                lbrow.OperatorName = cellText;
                                                                 break;
                                                             case "th_comments":
-                                                                lbrow.Comments = cell.InnerText;
+                                                                lbrow.Comments = cellText;
                                                                 break;
                                                             case "th_status":
-                                                                lbrow.Confirmed = cell.InnerText.StartsWith("Confirmed");
+                                                                lbrow.Confirmed = cellText.StartsWith("Confirmed");
                                                                 break;
                                                         }
                                                         if (curPos > -1 && (!(start <= curPos && curPos <= end)))
