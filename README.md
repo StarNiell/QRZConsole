@@ -39,7 +39,7 @@ Good Radio and excellent QSOs!
 
 ## Command List
 `-------------------------------------------------------------------------
-  Description                           command [param] ...
+  Description                           command [param] 
 -------------------------------------------------------------------------
 Credentials:
   Is Logged                             il
