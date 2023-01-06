@@ -37,6 +37,65 @@ Take a look at the list of all commands before starting.
 Good Radio and excellent QSOs!
 
 
+## Command List
+-------------------------------------------------------------------------
+  Description                           command [param] ...
+-------------------------------------------------------------------------
+Credentials:
+  Is Logged                             il
+  Is Logged (last status)               ls
+  Login                                 li [username] [password]
+  LogOut                                lo
+Search:
+  Lookup                                lu [qrz]
+  Check Worked                          cw [qrz]
+  Lookup and Check Worked               lw [qrz]
+  Check Worked and Lookup               wl [qrz]
+Logbook:
+  Add QSO                               aq [qrz] [freq] [mode] [date] [time] [comment]
+  Edit QSO                              eq [position] [qrz] [freq] [mode] [date] [time] [comment]
+  Delete QSO                            dq [position] [position] [position] (enter 3 times the same position to delete for security reasons)
+  Open Logbook                          lb
+  QSO Count                             qc
+  Logbook pages                         lp
+  Get/Set QSO for page                  qp [entries] (valid values: 5, 10, 15, 20, 25, 50, 100, 200)
+  Get/Set current view mode             cv [mode] (mode: [raw], [text] OR [adif])
+  Goto Page                             gp [page]
+  Page Down                             pd
+  Page Up                               pu
+  Current Page                          cp
+  Order Date Asc                        da
+  Order Date Desc                       dd
+  Get Table Contente Text               tt [page]
+  Get Table Contente Raw                tr [page]
+  Get Table Content XML                 tx [page]
+  Get QSOs by range Text View           qt [start position] [end position]
+  Get QSOs by range Text Raw            qr [start position] [end position]
+  Get QSOs by range ADIF                qa [start position] [end position]
+Cluster DX:
+  Open Cluster DX                       dx
+  Show DX on Band                       sb [band] [items] (band example: [40m] [10m] or [hf] [vhf] [uhf])
+  Show DX on Freq                       sf [freq] [items] (freq example: [7155] [14200] ...)
+  Search Callsign on Cluster DX         ds [callsign]
+  DXSpider command                      dc [DXSpider command: http://www.dxcluster.org/main/usermanual_en-12.html]
+  Send Spot                             ss [call] [freq] [comment]
+  Close Cluster DX                      cc
+General/Utility:
+  Clear Monitor                         cl
+  Find DXCC Countries                   fc [search]
+  Load Your Grid Locator                lc
+  Get Grid Locator List                 gl [loc] [c or u] (example: gl [*] [c] - gl [EN70]
+  Set current Frequency                 ff [freq]
+  Set current QRZ                       qq [qrz]
+  Switch View                           sw
+  Switch Check Is Logged at startup     sc
+  Switch screen (normal/fullsize)       fs
+  Last data in memory                   ld
+  Command List                          cm
+  Shortcut List                         sl
+  Quit                                  qi
+-------------------------------------------------------------------------
+
 ## Change Log
 ### 2023-01-06
 * *First public commit
