@@ -101,4 +101,5 @@ General/Utility:
 ## Change Log
 ### 2023-01-06
 * *First public commit
+* *v.1.0.0.13-beta
 
