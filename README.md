@@ -38,7 +38,7 @@ Good Radio and excellent QSOs!
 
 
 ## Command List
-`
+```
   Description                           command [param] ...
 
 
@@ -95,7 +95,7 @@ General/Utility:
   Command List                          cm
   Shortcut List                         sl
   Quit                                  qi
-`
+```
 
 ## Change Log
 ### 2023-01-06
