@@ -410,9 +410,14 @@ namespace QRZLibrary
 
                     bool PageLoaded = false;
 
-                    object[] o = new object[1];
-                    o[0] = "0";
-                    wb.Document.InvokeScript("newQSOform", o);
+                    HtmlElement savebut = wb.Document.GetElementById("savebut");
+                    if (savebut != null)
+                    {
+                        //object[] o = new object[1];
+                        //o[0] = "0";
+                        //wb.Document.InvokeScript("newQSOform", o);
+                        savebut.InvokeMember("click");
+                    }
 
                     while (!PageLoaded)
                     {

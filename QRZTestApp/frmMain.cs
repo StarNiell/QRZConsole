@@ -456,7 +456,7 @@ namespace QRZConsole
                 currentViewMode = GetRegKeyValue("currentViewMode");
 
             string LocatorsList = (GetRegKeyValue($"{txtUsername.Text}_Locators"));
-            if (LocatorsList != "")
+            if (!string.IsNullOrEmpty(LocatorsList))
             {
                 Locators = JsonConvert.DeserializeObject<List<KeyValuePair<string, bool>>>(LocatorsList);
             }
