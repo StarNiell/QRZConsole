@@ -8,7 +8,7 @@ For more information about the website, go to: https://www.qrz.com
 * This program require Microsoft Windows EDGE Browser (pre-installed since Windows 8.1)
 
 ## Download binary files
-* You can download the binaries [Here (zip)](https://raw.githubusercontent.com/StarNiell/QRZConsole/blob/master/Dist/QRZConsole-Last-Beta_Release-net4.6.zip) v.1.0.0.13-beta
+* You can download the binaries [Here (zip)](https://raw.githubusercontent.com/StarNiell/QRZConsole/master/Dist/QRZConsole-Last-Beta_Release-net4.6.zip) v.1.0.0.13-beta
 
 ## Additional info
 This release is a beta! It is therefore not considered "bug-free".
