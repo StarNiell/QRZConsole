@@ -36,8 +36,8 @@ namespace QRZConsole
         int cmdHistoryIndex = 0;
 
 
-        string ClusterAddr = "gb7ujs.ham-radio-op.net";
-        int ClusterPort = 7373;
+        string ClusterAddr = "dxfun.com";
+        int ClusterPort = 8000;
         private bool ClusterDebug = false;
         string ClusterDXprompt = "ClusterDX>";
         private bool clusterConnected = false;
