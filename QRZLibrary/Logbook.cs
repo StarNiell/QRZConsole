@@ -161,6 +161,12 @@ namespace QRZLibrary
             el.SetAttribute("value", value);
         }
 
+        private void SetValueByParentElementAndTagnameAndClassName(string parentId, string tagname, string classname, string value)
+        {
+            HtmlElement el = QRZHelper.GetElementByTagAndClassName(wb.Document.GetElementById(parentId), tagname, classname);
+            el.SetAttribute("value", value);
+        }
+
         private void ExecuteScript(string script)
         {
             wb.Document.InvokeScript(script);
@@ -806,8 +812,14 @@ namespace QRZLibrary
 
             if (GotoLookup())
             {
-                SetElementValue("tquery", QRZsearch.ToUpper());
-                HtmlElement sbmt = wb.Document.GetElementById("tsubmit");
+                Debug.Print( $"before start lookup you are in: {wb.Document.Url.ToString()}");
+                HtmlElement sbmt = null;
+                HtmlElement tqry = null;
+
+                SetValueByParentElementAndTagnameAndClassName("topcall", "input", "tquery", QRZsearch.ToUpper());
+                //SetElementValue("tquery", QRZsearch.ToUpper());
+                sbmt = wb.Document.GetElementById("tsubmit");
+
                 if (sbmt != null)
                 {
                     Stopwatch stopwatch = new Stopwatch();
@@ -831,6 +843,7 @@ namespace QRZLibrary
                             break;
                         }
                     }
+                    Debug.Print( $"after lookup you are in: {wb.Document.Url.ToString()}");
                     if (!queryTimeOut)
                     {
                         LookupEntry entry = new LookupEntry();

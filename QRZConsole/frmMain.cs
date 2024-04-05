@@ -315,7 +315,7 @@ namespace QRZConsole
                 addMonitor($"Lookup {QRZtoSearch}...");
                 LookupEntry entry = qrz.ExecQuery(QRZtoSearch);
 
-                if (!string.IsNullOrEmpty(entry.GridSquare))
+                if (!string.IsNullOrEmpty(entry?.GridSquare))
                 {
                     if (entry.GridSquare.Length >= 4)
                     {
@@ -333,24 +333,31 @@ namespace QRZConsole
                     
                 }
 
-                addMonitor($"Resut = --->");
-                addMonitor($"   QRZ          = {entry.QRZ}");
-                addMonitor($"   Name         = {entry.Name}");
-                addMonitor($"   DXCC         = {entry.DXCC}");
-                addMonitor($"   Country      = {entry.Country}");
-                addMonitor($"   Grid Locator = {entry.GridSquare} {LocatorWorked}");
-                addMonitor($"   Address 1    = {entry.Address1}");
-                addMonitor($"   Address 2    = {entry.Address2}");
-                if (!string.IsNullOrEmpty(entry.Address3))
-                    addMonitor($"   Address 3    = {entry.Address3}");
-                if (!string.IsNullOrEmpty(entry.UsState))
-                    addMonitor($"   US State     = {entry.UsState}");
-                if (!string.IsNullOrEmpty(entry.UsCounty))
-                    addMonitor($"   US County    = {entry.UsCounty}");
-                if (!string.IsNullOrEmpty(entry.Distance))
-                    addMonitor($"   Distance     = {entry.Distance}");
-                addMonitor($"   Email        = {entry.Email}");
-                addMonitor($"------------------------------------");
+                if (entry != null)
+                {
+                    addMonitor($"Resut = --->");
+                    addMonitor($"   QRZ          = {entry.QRZ}");
+                    addMonitor($"   Name         = {entry.Name}");
+                    addMonitor($"   DXCC         = {entry.DXCC}");
+                    addMonitor($"   Country      = {entry.Country}");
+                    addMonitor($"   Grid Locator = {entry.GridSquare} {LocatorWorked}");
+                    addMonitor($"   Address 1    = {entry.Address1}");
+                    addMonitor($"   Address 2    = {entry.Address2}");
+                    if (!string.IsNullOrEmpty(entry.Address3))
+                        addMonitor($"   Address 3    = {entry.Address3}");
+                    if (!string.IsNullOrEmpty(entry.UsState))
+                        addMonitor($"   US State     = {entry.UsState}");
+                    if (!string.IsNullOrEmpty(entry.UsCounty))
+                        addMonitor($"   US County    = {entry.UsCounty}");
+                    if (!string.IsNullOrEmpty(entry.Distance))
+                        addMonitor($"   Distance     = {entry.Distance}");
+                    addMonitor($"   Email        = {entry.Email}");
+                    addMonitor($"------------------------------------");
+                }
+                else
+                {
+                    addMonitor("An Error cause unable to lookup your request!");
+                }
             }
             else
                 addMonitor($"No QRZ to search");
