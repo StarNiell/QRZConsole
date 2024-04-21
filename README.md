@@ -102,6 +102,11 @@ General/Utility:
 ```
 
 ## Change Log
+### 2024-04-21
+* v.1.0.0.14-beta
+* Fix Add QSO (wronmg receive frequency)
+* Fix fail Edit QSO
+  
 ### 2023-01-06
 * *First public commit
 * *v.1.0.0.13-beta
