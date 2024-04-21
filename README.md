@@ -103,7 +103,7 @@ General/Utility:
 
 ## Change Log
 ### 2024-04-21
-* v.1.0.0.14-beta
+* v.1.0.0.15-beta
 * Fix Add QSO (wronmg receive frequency)
 * Fix fail Edit QSO
   
