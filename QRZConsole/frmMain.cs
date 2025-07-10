@@ -27,8 +27,8 @@ namespace QRZConsole
         private string lastMode = "SSB";
         private string currentViewMode = "raw";
 
-        private bool isTab = false;
-        private bool isShiftTab = false;
+        //private bool isTab = false;
+        //private bool isShiftTab = false;
 
         private Winsock ws;
 
@@ -80,10 +80,10 @@ namespace QRZConsole
             IsLogged();
         }
 
-        private void IsLogged()
+        private async void IsLogged()
         {
             addMonitor($"Start IsLogged request...");
-            bool il = qrz.IsLogged();
+            bool il = await qrz.IsLogged();
             if (il)
                 addMonitor($"IsLogged = {il.ToString()} by [{txtUsername.Text}]");
             else
@@ -105,7 +105,7 @@ namespace QRZConsole
             LogOut();
         }
 
-        private void LogOut()
+        private async void LogOut()
         {
             if (GetRegKeyValue("IsLoggedIn") != "1")
             {
@@ -115,7 +115,7 @@ namespace QRZConsole
             else
             {
                 addMonitor($"Start Log Out...");
-                bool lo = qrz.LogOut();
+                bool lo = await qrz.LogOut();
                 addMonitor($"Logout = {lo.ToString()}");
                 if (lo)
                 {
@@ -148,29 +148,32 @@ namespace QRZConsole
             addMonitor($"Load QRZ Home = {qrz.GotoQrzHome()}");
         }
 
-        private void btnGotoLookbook_Click(object sender, EventArgs e)
+        private async void btnGotoLookbook_Click(object sender, EventArgs e)
         {
-            GotoLogbook();
+            await GotoLogbook();
         }
 
         private void LoadLocators()
         {
-            addMonitor($"Load Grid Locators Worked... It can take a long time");
-            Locators = qrz.GetLocatorWorked();
-            addMonitor($"Total Grid Locators Worked      = {Locators.Count.ToString()}");
-            addMonitor($"Total Grid Locators Confirmed   = {Locators.Where(x => x.Value).Count().ToString()}");
-            addMonitor($"Total Grid Locators Unconfirmed = {Locators.Where(x => !x.Value).Count().ToString()}");
 
-            string locatorsSerialized = Newtonsoft.Json.JsonConvert.SerializeObject(Locators);
+            addMonitor($"Load Grid Locators Worked... it's no longer available!");
+            //addMonitor($"Load Grid Locators Worked... It can take a long time");
+            //Locators = await qrz.GetLocatorWorked();
+            //addMonitor($"Total Grid Locators Worked      = {Locators.Count.ToString()}");
+            //addMonitor($"Total Grid Locators Confirmed   = {Locators.Where(x => x.Value).Count().ToString()}");
+            //addMonitor($"Total Grid Locators Unconfirmed = {Locators.Where(x => !x.Value).Count().ToString()}");
 
-            SaveRegKey($"{txtUsername.Text}_Locators", locatorsSerialized);
+            //string locatorsSerialized = Newtonsoft.Json.JsonConvert.SerializeObject(Locators);
+
+            //SaveRegKey($"{txtUsername.Text}_Locators", locatorsSerialized);
 
         }
 
-        private void GotoLogbook()
+        private async Task GotoLogbook()
         {
             addMonitor($"Load Logbook...");
-            addMonitor($"Load Logbook = {qrz.GotoLogbook()}");
+            bool b = await qrz.GotoLogbook();
+            addMonitor($"Load Logbook = {b}");
 
             int page = 1;
             if (int.TryParse(txtLogbookPage.Text, out int tmp))
@@ -189,9 +192,9 @@ namespace QRZConsole
             Login();
         }
 
-        private void Login(string prm1 = "", string prm2 = "")
+        private async void Login(string prm1 = "", string prm2 = "")
         {
-            if (GetRegKeyValue("IsLoggedIn")=="1")
+            if (GetRegKeyValue("IsLoggedIn") == "1")
             {
                 addMonitor($"Warning! IsLogged (last status) = True by [{GetRegKeyValue("username")}]");
                 addMonitor($"Before new Login start IsLogged request with il command]");
@@ -214,15 +217,15 @@ namespace QRZConsole
 
                     addMonitor($"Login... QRZ=[{qrz.Qrz}] - Password=[{new string('*', qrz.Password.Length)}]");
 
-                    string errorMessage = string.Empty;
-                    bool logged = qrz.Login(out errorMessage);
+                    qrz.errorMessage = string.Empty;
+                    bool logged = await qrz.Login();
                     if (logged)
                     {
                         SaveRegKey("IsLoggedIn", "1");
                         addMonitor($"Logged in QRZ=[{qrz.Qrz}]");
                     }
                     else
-                        addMonitor(errorMessage);
+                        addMonitor(qrz.errorMessage);
                 }
                 else
                 {
@@ -275,13 +278,13 @@ namespace QRZConsole
             }
         }
 
-        private void btnLookup_Click(object sender, EventArgs e)
+        private async void btnLookup_Click(object sender, EventArgs e)
         {
             string QRZtoSearch = txtQRZLookup.Text;
 
             QRZtoSearch = QRZtoSearch.ToUpper();
 
-            Lookup(QRZtoSearch);
+            await Lookup(QRZtoSearch);
             lastQRZ = QRZtoSearch;
         }
 
@@ -293,7 +296,7 @@ namespace QRZConsole
             addMonitor($"Current QRZ: {QRZ}");
         }
 
-        private void Lookup(string QRZtoSearch = "")
+        private async Task Lookup(string QRZtoSearch = "")
         {
             if (QRZtoSearch != "")
             {
@@ -313,7 +316,7 @@ namespace QRZConsole
 
                 addMonitor("");
                 addMonitor($"Lookup {QRZtoSearch}...");
-                LookupEntry entry = qrz.ExecQuery(QRZtoSearch);
+                LookupEntry entry = await qrz.ExecQuery(QRZtoSearch);
 
                 if (!string.IsNullOrEmpty(entry?.GridSquare))
                 {
@@ -363,17 +366,17 @@ namespace QRZConsole
                 addMonitor($"No QRZ to search");
         }
 
-        private void btnCheckWorked_Click(object sender, EventArgs e)
+        private async void btnCheckWorked_Click(object sender, EventArgs e)
         {
             string QRZtoSearch = txtQRZLookup.Text;
 
             QRZtoSearch = QRZtoSearch.ToUpper();
 
-            GetWorked(QRZtoSearch);
+            await GetWorked(QRZtoSearch);
 
         }
 
-        private void GetWorked(string QRZtoSearch = "")
+        private async Task GetWorked(string QRZtoSearch = "")
         {
             if (QRZtoSearch != "")
             {
@@ -390,7 +393,7 @@ namespace QRZConsole
                 addMonitor("");
                 addMonitor($"Check Worked {QRZtoSearch}...");
 
-                string ret = qrz.CheckWorkedRaw(QRZtoSearch);
+                string ret = await qrz.CheckWorkedRaw(QRZtoSearch);
                 if (ret != "")
                     addMonitor(ret);
                 else
@@ -413,10 +416,10 @@ namespace QRZConsole
             QSOCount();
         }
 
-        private void QSOCount()
+        private async void QSOCount()
         {
             addMonitor($"Get QSOs Count... ");
-            addMonitor($"QSOs Count = {qrz.GetQSOsCount()}");
+            addMonitor($"QSOs Count = {await qrz.GetQSOsCount()}");
         }
 
         private void btnLogbookPages_Click(object sender, EventArgs e)
@@ -424,10 +427,10 @@ namespace QRZConsole
             LogbookPages();
         }
 
-        private void LogbookPages()
+        private async void LogbookPages()
         {
             addMonitor($"Get Loogbook Pages... ");
-            addMonitor($"Loogbook Pages = {qrz.GetLogbookPages()}");
+            addMonitor($"Loogbook Pages = {await qrz.GetLogbookPages()}");
         }
 
         private void btnCurrentPage_Click(object sender, EventArgs e)
@@ -435,10 +438,10 @@ namespace QRZConsole
             CurrentPage();
         }
 
-        private void CurrentPage()
+        private async void CurrentPage()
         {
             addMonitor($"Get Current Loogbook Page... ");
-            int currentPage = qrz.GetCurrentLogbookPage();
+            int currentPage = await qrz.GetCurrentLogbookPage();
             if (currentPage <= 0)
             {
                 addMonitor($"Unable to get Current Loogbook Page! Are you logged in?");
@@ -450,8 +453,10 @@ namespace QRZConsole
                 txtLogbookPage.Text = currentPage.ToString();
         }
 
-        private void frmMain_Load(object sender, EventArgs e)
+        private async void frmMain_Load(object sender, EventArgs e)
         {
+            await qrz.IninWebView2();
+
             this.Text = $"{Application.ProductName} v.{System.Windows.Forms.Application.ProductVersion}-beta";
 
             txtUsername.Text = GetRegKeyValue("username");
@@ -477,8 +482,8 @@ namespace QRZConsole
             addMonitor("");
             addMonitor($"QRZ Console is a \"unofficial command-line interface\" to the QRZ.COM website and require a personal account.\r\nFor more information about the website, go to: https://www.qrz.com");
             addMonitor("");
-            addMonitor($"This program require Microsoft Windows EDGE Browser (pre-installed since Windows 8.1)");
-            addMonitor("");
+            //addMonitor($"This program require Microsoft Windows EDGE Browser (pre-installed since Windows 8.1)");
+            //addMonitor("");
 
             SetCurrentViewMode("");
             addMonitor("");
@@ -532,10 +537,10 @@ namespace QRZConsole
             }
         }
 
-        private void GotoPage(int page)
+        private async void GotoPage(int page)
         {
             addMonitor($"Goto Page {page}... ");
-            int currentPage = qrz.GotoLoogbookPage(page);
+            int currentPage = await qrz.GotoLoogbookPage(page);
             addMonitor($"Current Page = {currentPage}");
             txtLogbookPage.Text = currentPage.ToString();
 
@@ -562,13 +567,14 @@ namespace QRZConsole
             GetTableContenteRawView(page);
         }
 
-        private void GetTableContenteRawView(int page)
+        private async void GetTableContenteRawView(int page)
         {
             if (page < 1)
                 int.TryParse(txtLogbookPage.Text, out page);
 
             addMonitor($"Get Table content Raw of page {page}... ");
-            addMonitor($"{qrz.GetLogbookPageContentRaw(page)}");
+            string s = await qrz.GetLogbookPageContentRaw(page);
+            addMonitor($"{s}");
         }
 
         private void btnGetTableContentXML_Click(object sender, EventArgs e)
@@ -581,14 +587,14 @@ namespace QRZConsole
             GetTableContentXML(page);
         }
 
-        private void GetTableContentXML(int page)
+        private async void GetTableContentXML(int page)
         {
             if (page < 1)
                 int.TryParse(txtLogbookPage.Text, out page);
 
             addMonitor($"Get Table content XML of page {page}... ");
 
-            List<LogbookEntry> lbentries = qrz.GetLogbookPageContent(page);
+            List<LogbookEntry> lbentries = await qrz.GetLogbookPageContent(page);
             if (lbentries != null)
             {
                 if (lbentries.Count > 0)
@@ -604,14 +610,14 @@ namespace QRZConsole
             }
         }
 
-        private void GetQSObyRangeTextView(int start, int end)
+        private async void GetQSObyRangeTextView(int start, int end)
         {
             if (end == 0)
                 end = start;
 
             addMonitor($"Get QSOs by range (Text View): from position {start} to {end}... ");
 
-            List<LogbookEntry> lbentries = qrz.GetLogbookEntriesByRange(start, end);
+            List<LogbookEntry> lbentries = await qrz.GetLogbookEntriesByRange(start, end);
             if (lbentries != null)
             {
                 if (lbentries.Count > 0)
@@ -687,14 +693,14 @@ namespace QRZConsole
         }
 
         
-        private void GetQSObyRangeADIF(int start, int end)
+        private async void GetQSObyRangeADIF(int start, int end)
         {
             if (end == 0)
                 end = start;
 
             addMonitor($"Get QSOs by range (ADIF): from position {start} to {end}... ");
 
-            List<LogbookEntry> lbentries = qrz.GetLogbookEntriesByRange(start, end);
+            List<LogbookEntry> lbentries = await qrz.GetLogbookEntriesByRange(start, end);
             if (lbentries != null)
             {
                 if (lbentries.Count > 0)
@@ -738,7 +744,7 @@ namespace QRZConsole
             }
         }
 
-        private void AddQSO(string qrzToAdd, string freq, string mode, string date, string time, string comment)
+        private async void AddQSO(string qrzToAdd, string freq, string mode, string date, string time, string comment)
         {
             if (qrzToAdd != "" && qrzToAdd != "[CALL]" && freq != "" && mode != "" && date != "" && time != "")
             {
@@ -753,7 +759,7 @@ namespace QRZConsole
                 qrzToAdd = qrzToAdd.ToUpper();
                 mode = mode.ToUpper();
 
-                bool QsoAdded = qrz.AddQSOToLogbook(qrzToAdd, freq, mode, date, time, comment);
+                bool QsoAdded = await qrz.AddQSOToLogbook(qrzToAdd, freq, mode, date, time, comment);
 
                 if (QsoAdded)
                 {
@@ -776,12 +782,12 @@ namespace QRZConsole
             }
         }
 
-        private void DeleteQSO(int position1, int pos2, int pos3)
+        private async void DeleteQSO(int position1, int pos2, int pos3)
         {
             if (position1 > 0 && position1 == pos2 && pos2 == pos3)
             {
                 addMonitor($"Deleting QSO from Logbook at position: {position1}...");
-                bool QsoDeleted = qrz.DeleteQSOFromLogbook(position1);
+                bool QsoDeleted = await qrz.DeleteQSOFromLogbook(position1);
                 if (QsoDeleted)
                 {
                     addMonitor("QSO deleted succesfully!");
@@ -799,7 +805,7 @@ namespace QRZConsole
             }
         }
 
-        private void EditQSO(string position, string qrzToAdd, string freq, string mode, string date, string time, string comment)
+        private async void EditQSO(string position, string qrzToAdd, string freq, string mode, string date, string time, string comment)
         {
             int pos = 0;
             if (int.TryParse(position, out int tmp))
@@ -820,7 +826,7 @@ namespace QRZConsole
                 qrzToAdd = qrzToAdd.ToUpper();
                 mode = mode.ToUpper();
 
-                bool QsoEdited = qrz.EditQSOToLogbook(pos, qrzToAdd, freq, mode, date, time, comment);
+                bool QsoEdited = await qrz.EditQSOToLogbook(pos, qrzToAdd, freq, mode, date, time, comment);
 
                 if (QsoEdited)
                 {
@@ -843,14 +849,14 @@ namespace QRZConsole
             }
         }
 
-        private void GetQSObyRangeTextRaw(int start, int end)
+        private async void GetQSObyRangeTextRaw(int start, int end)
         {
             if (end == 0)
                 end = start;
 
             addMonitor($"Get QSOs by range (Text Raw): from position {start} to {end}... ");
 
-            List<LogbookEntry> lbentries = qrz.GetLogbookEntriesByRange(start, end);
+            List<LogbookEntry> lbentries = await qrz.GetLogbookEntriesByRange(start, end);
             if (lbentries != null)
             {
                 if (lbentries.Count > 0)
@@ -916,14 +922,14 @@ namespace QRZConsole
             }
         }
 
-        private void GetTableContentTextView(int page)
+        private async void GetTableContentTextView(int page)
         {
             if (page < 1)
                 int.TryParse(txtLogbookPage.Text, out page);
 
             addMonitor($"Get Table content text of page {page}... ");
 
-            List<LogbookEntry> lbentries = qrz.GetLogbookPageContent(page);
+            List<LogbookEntry> lbentries = await qrz.GetLogbookPageContent(page);
             if (lbentries != null)
             {
                 if (lbentries.Count > 0)
@@ -997,14 +1003,14 @@ namespace QRZConsole
                 addMonitor($"Found {lbentries.Count} entries");
             }
         }
-        private void GetTableContentAdifView(int page)
+        private async void GetTableContentAdifView(int page)
         {
             if (page < 1)
                 int.TryParse(txtLogbookPage.Text, out page);
 
             addMonitor($"Get Table content ADIF of page {page}... ");
 
-            List<LogbookEntry> lbentries = qrz.GetLogbookPageContent(page);
+            List<LogbookEntry> lbentries = await qrz.GetLogbookPageContent(page);
             if (lbentries != null)
             {
                 if (lbentries.Count > 0)
@@ -1131,10 +1137,10 @@ namespace QRZConsole
             OrderDateAsc();
         }
 
-        private void OrderDateAsc()
+        private async void OrderDateAsc()
         {
             addMonitor($"Set Logbook Order Date Asc... ");
-            int currOrder = qrz.SetLogbookDateOrder(0);
+            int currOrder = await qrz.SetLogbookDateOrder(0);
             if (currOrder == 0)
                 addMonitor($"Logbook Order Date is \"Asc\"");
             else
@@ -1147,14 +1153,14 @@ namespace QRZConsole
             addMonitor($"QSO for page = {qrz.GetEntriesForPage()}");
         }
 
-        private void SetEntriesForPage(int entries)
+        private async void SetEntriesForPage(int entries)
         {
             addMonitor($"Set QSO for page to {entries}... ");
-            string msg = string.Empty;
-            int ret = qrz.SetEntriesForPage(entries, out msg);
+            string outMsg = string.Empty;
+            int ret = await qrz.SetEntriesForPage(entries);
 
-            if (!string.IsNullOrEmpty(msg))
-                addMonitor(msg);
+            if (!string.IsNullOrEmpty(outMsg))
+                addMonitor(outMsg);
             else
             {
                 if (ret == entries)
@@ -1169,10 +1175,10 @@ namespace QRZConsole
             OrderDateDesc();
         }
 
-        private void OrderDateDesc()
+        private async void OrderDateDesc()
         {
             addMonitor($"Set Logbook Order Date Desc... ");
-            int currOrder = qrz.SetLogbookDateOrder(1);
+            int currOrder = await qrz.SetLogbookDateOrder(1);
             if (currOrder == 1)
                 addMonitor($"Logbook Order Date is \"Desc\"");
             else
@@ -1236,7 +1242,7 @@ namespace QRZConsole
             
         }
 
-        private void elabCommand(string command)
+        private async void elabCommand(string command)
         {
             if (command.Trim() != "")
             {
@@ -1331,27 +1337,27 @@ namespace QRZConsole
                         LogOut();
                         break;
                     case "lu":
-                        Lookup(prm1);
+                        await Lookup(prm1);
                         break;
                     case "qq":
                         SetCurrentQRZ(prm1);
                         break;
                     case "cw":
-                        GetWorked(prm1);
+                        await GetWorked(prm1);
                         break;
                     case "lw":
-                        Lookup(prm1);
-                        GetWorked(prm1);
+                        await Lookup(prm1);
+                        await GetWorked(prm1);
                         break;
                     case "wl":
-                        GetWorked(prm1);
-                        Lookup(prm1);
+                        await GetWorked(prm1);
+                        await Lookup(prm1);
                         break;
                     case "hm":
                         QRZHome();
                         break;
                     case "lb":
-                        GotoLogbook();
+                        await GotoLogbook();
                         break;
                     case "lc":
                         LoadLocators();

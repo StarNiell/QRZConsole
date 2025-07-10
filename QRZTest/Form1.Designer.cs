@@ -30,22 +30,23 @@ namespace QRZTest
         private void InitializeComponent()
         {
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
-            this.wb = new System.Windows.Forms.WebBrowser();
             this.panel1 = new System.Windows.Forms.Panel();
+            this.button4 = new System.Windows.Forms.Button();
             this.button3 = new System.Windows.Forms.Button();
             this.txtMonitor = new System.Windows.Forms.TextBox();
             this.button2 = new System.Windows.Forms.Button();
             this.button1 = new System.Windows.Forms.Button();
-            this.button4 = new System.Windows.Forms.Button();
+            this.wb2 = new Microsoft.Web.WebView2.WinForms.WebView2();
             this.tableLayoutPanel1.SuspendLayout();
             this.panel1.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.wb2)).BeginInit();
             this.SuspendLayout();
             // 
             // tableLayoutPanel1
             // 
             this.tableLayoutPanel1.ColumnCount = 1;
             this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.tableLayoutPanel1.Controls.Add(this.wb, 0, 1);
+            this.tableLayoutPanel1.Controls.Add(this.wb2, 0, 1);
             this.tableLayoutPanel1.Controls.Add(this.panel1, 0, 0);
             this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanel1.Location = new System.Drawing.Point(0, 0);
@@ -57,16 +58,6 @@ namespace QRZTest
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
             this.tableLayoutPanel1.Size = new System.Drawing.Size(800, 450);
             this.tableLayoutPanel1.TabIndex = 0;
-            // 
-            // wb
-            // 
-            this.wb.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.wb.Location = new System.Drawing.Point(3, 53);
-            this.wb.MinimumSize = new System.Drawing.Size(20, 20);
-            this.wb.Name = "wb";
-            this.wb.Size = new System.Drawing.Size(794, 394);
-            this.wb.TabIndex = 1;
-            this.wb.DocumentCompleted += new System.Windows.Forms.WebBrowserDocumentCompletedEventHandler(this.wb_DocumentCompleted);
             // 
             // panel1
             // 
@@ -81,6 +72,16 @@ namespace QRZTest
             this.panel1.Size = new System.Drawing.Size(794, 44);
             this.panel1.TabIndex = 2;
             // 
+            // button4
+            // 
+            this.button4.Location = new System.Drawing.Point(344, 6);
+            this.button4.Name = "button4";
+            this.button4.Size = new System.Drawing.Size(107, 27);
+            this.button4.TabIndex = 4;
+            this.button4.Text = "button4";
+            this.button4.UseVisualStyleBackColor = true;
+            this.button4.Click += new System.EventHandler(this.Button4_Click);
+            // 
             // button3
             // 
             this.button3.Location = new System.Drawing.Point(235, 6);
@@ -89,7 +90,7 @@ namespace QRZTest
             this.button3.TabIndex = 3;
             this.button3.Text = "button3";
             this.button3.UseVisualStyleBackColor = true;
-            this.button3.Click += new System.EventHandler(this.button3_Click);
+            this.button3.Click += new System.EventHandler(this.Button3_Click);
             // 
             // txtMonitor
             // 
@@ -108,7 +109,7 @@ namespace QRZTest
             this.button2.TabIndex = 1;
             this.button2.Text = "button2";
             this.button2.UseVisualStyleBackColor = true;
-            this.button2.Click += new System.EventHandler(this.button2_Click);
+            this.button2.Click += new System.EventHandler(this.Button2_Click);
             // 
             // button1
             // 
@@ -118,17 +119,19 @@ namespace QRZTest
             this.button1.TabIndex = 0;
             this.button1.Text = "button1";
             this.button1.UseVisualStyleBackColor = true;
-            this.button1.Click += new System.EventHandler(this.button1_Click);
+            this.button1.Click += new System.EventHandler(this.Button1_Click);
             // 
-            // button4
+            // wb2
             // 
-            this.button4.Location = new System.Drawing.Point(344, 6);
-            this.button4.Name = "button4";
-            this.button4.Size = new System.Drawing.Size(107, 27);
-            this.button4.TabIndex = 4;
-            this.button4.Text = "button4";
-            this.button4.UseVisualStyleBackColor = true;
-            this.button4.Click += new System.EventHandler(this.button4_Click);
+            this.wb2.AllowExternalDrop = true;
+            this.wb2.CreationProperties = null;
+            this.wb2.DefaultBackgroundColor = System.Drawing.Color.White;
+            this.wb2.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.wb2.Location = new System.Drawing.Point(3, 53);
+            this.wb2.Name = "wb2";
+            this.wb2.Size = new System.Drawing.Size(794, 394);
+            this.wb2.TabIndex = 4;
+            this.wb2.ZoomFactor = 1D;
             // 
             // Form1
             // 
@@ -138,9 +141,11 @@ namespace QRZTest
             this.Controls.Add(this.tableLayoutPanel1);
             this.Name = "Form1";
             this.Text = "Form1";
+            this.Load += new System.EventHandler(this.Form1_Load);
             this.tableLayoutPanel1.ResumeLayout(false);
             this.panel1.ResumeLayout(false);
             this.panel1.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.wb2)).EndInit();
             this.ResumeLayout(false);
 
         }
@@ -148,13 +153,13 @@ namespace QRZTest
         #endregion
 
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel1;
-        private System.Windows.Forms.WebBrowser wb;
         private System.Windows.Forms.Panel panel1;
         private System.Windows.Forms.Button button2;
         private System.Windows.Forms.Button button1;
         private System.Windows.Forms.TextBox txtMonitor;
         private System.Windows.Forms.Button button3;
         private System.Windows.Forms.Button button4;
+        private Microsoft.Web.WebView2.WinForms.WebView2 wb2;
     }
 }
 

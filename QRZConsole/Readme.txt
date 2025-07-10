@@ -1,12 +1,9 @@
 [ENG]
 ************************************************************************************************************************
-Welcome to QRZ Console v.1.0.0.8-beta
+Welcome to QRZ Console v.1.0.1.0-beta
 
 QRZ Console is a "unofficial command-line interface" to the QRZ.COM website and require a personal account.
 For more information about the website, go to: https://www.qrz.com
-
-This program require Microsoft Windows EDGE Browser (pre-installed since Windows 8.1)
-************************************************************************************************************************
 
 [ITA]
 ************************************************************************************************************************
