@@ -102,6 +102,11 @@ General/Utility:
 ```
 
 ## Change Log
+### 2025-08-16
+* v.1.0.1.1-beta
+* Removed old MSBrowser (IE/EDGE)
+* Added WebView2 (Chromium browser)
+
 ### 2024-04-21
 * v.1.0.0.15-beta
 * Fix Add QSO (wronmg receive frequency)
