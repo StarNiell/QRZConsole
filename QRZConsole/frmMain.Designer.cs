@@ -96,13 +96,13 @@ namespace QRZConsole
             // 
             this.splitContainer1.Panel2.Controls.Add(this.txtMonitor);
             this.splitContainer1.Size = new System.Drawing.Size(940, 691);
-            this.splitContainer1.SplitterDistance = 232;
+            this.splitContainer1.SplitterDistance = 25;
             this.splitContainer1.TabIndex = 1;
             // 
             // btnSwitchView
             // 
             this.btnSwitchView.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnSwitchView.Location = new System.Drawing.Point(916, 207);
+            this.btnSwitchView.Location = new System.Drawing.Point(916, 0);
             this.btnSwitchView.Name = "btnSwitchView";
             this.btnSwitchView.Size = new System.Drawing.Size(20, 20);
             this.btnSwitchView.TabIndex = 42;
@@ -117,7 +117,7 @@ namespace QRZConsole
             this.txtCommand.Dock = System.Windows.Forms.DockStyle.Bottom;
             this.txtCommand.Font = new System.Drawing.Font("Consolas", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.txtCommand.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(255)))), ((int)(((byte)(255)))), ((int)(((byte)(192)))));
-            this.txtCommand.Location = new System.Drawing.Point(0, 208);
+            this.txtCommand.Location = new System.Drawing.Point(0, 1);
             this.txtCommand.Name = "txtCommand";
             this.txtCommand.Size = new System.Drawing.Size(936, 20);
             this.txtCommand.TabIndex = 41;
@@ -487,7 +487,7 @@ namespace QRZConsole
             this.txtMonitor.Name = "txtMonitor";
             this.txtMonitor.ReadOnly = true;
             this.txtMonitor.ScrollBars = System.Windows.Forms.ScrollBars.Both;
-            this.txtMonitor.Size = new System.Drawing.Size(936, 451);
+            this.txtMonitor.Size = new System.Drawing.Size(936, 658);
             this.txtMonitor.TabIndex = 24;
             this.txtMonitor.WordWrap = false;
             this.txtMonitor.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.txtMonitor_KeyPress);

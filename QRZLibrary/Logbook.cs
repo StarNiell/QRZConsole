@@ -536,7 +536,7 @@ namespace QRZLibrary
 
                 if (await GotoLoogbookPage(page) == page)
                 {
-                    HtmlElement table = await GetHTMLElementAsync("lblistrs", "lbtab");
+                    HtmlElement table = await GetHTMLElementWait("lblistrs", "lbtab");
                     HtmlElement thead = QRZHelper.GetElementByTagAndClassName(table, "thead", "");
                     if (thead.TagName != null)
                     {
@@ -673,10 +673,24 @@ namespace QRZLibrary
                         await SetElementValue("freq2", freq);
                         await ExecuteScriptAsync($"setFreq('2, '0')");
 
+                        bOK = false;
                         if (await ExecuteScriptAsync("document.getElementById('band2') != null") == "true")
                         {
                             await SetElementValue("band2", bandFound);
                             bOK = true;
+                        }
+
+                        if (bOK)
+                        {
+                            await SetElementValue("freq1", freq);
+                            await ExecuteScriptAsync($"setFreq('1, '0')");
+
+                            bOK = false;
+                            if (await ExecuteScriptAsync("document.getElementById('band1') != null") == "true")
+                            {
+                                await SetElementValue("band1", bandFound);
+                                bOK = true;
+                            }
                         }
                     }
                 }
@@ -700,6 +714,18 @@ namespace QRZLibrary
                         await ExecuteScriptAsync($"setMode('1, '2')");
 
                         bOK = true;
+                    }
+
+                    if (bOK)
+                    {
+                        if (await ExecuteScriptAsync("document.getElementById('mode1') != null") == "true")
+                        {
+                            await SetElementValue("mode1", mode);
+                            await ExecuteScriptAsync($"setMode('1, '1')");
+
+                            bOK = true;
+                        }
+
                     }
 
                 }
@@ -800,7 +826,7 @@ namespace QRZLibrary
                         if (resultFound)
                         {
                             await ExecuteScriptAsync("showqem()");
-                            HtmlElement csdata = await GetHTMLElementAsync("calldata", "csdata");
+                            HtmlElement csdata = await GetHTMLElementWait("calldata", "csdata");
                             if (csdata != null)
                             {
                                 entry.QRZ = csdata.Children[0].OuterText.Trim();
@@ -818,7 +844,7 @@ namespace QRZLibrary
                                 }
                                 entry.Email = (csdata.Children[5].OuterText != null) ? csdata.Children[5].OuterText.Replace("Email: ", "") : string.Empty;
 
-                                HtmlElement detbox = await GetHTMLElementAsync("t_detail", "dt");
+                                HtmlElement detbox = await GetHTMLElementWait("t_detail", "dt");
                                 if (detbox != null)
                                 {
                                     HtmlElementCollection rows = detbox.GetElementsByTagName("TR");
@@ -878,7 +904,7 @@ namespace QRZLibrary
             string ret = string.Empty;
             if (await StartAddCall(QRZsearch))
             {
-                HtmlElement lblist = await GetHTMLElementAsync("lbform", "lblist");
+                HtmlElement lblist = await GetHTMLElementWait("lbform", "lblist");
                 if (lblist != null)
                 {
                     HtmlElement seenBeforeTable = QRZHelper.GetElementByTagAndClassName(lblist, "table", "styledTable seenBeforeTable");
@@ -988,7 +1014,7 @@ namespace QRZLibrary
 
             if (await GotoLogbook(ForceReload))
             {
-                HtmlElement el = await GetHTMLElementAsync("lb_body", "lbmenu");
+                HtmlElement el = await GetHTMLElementWait("lb_body", "lbmenu");
                 if (el != null)
                 {
                     HtmlElement el1 = QRZHelper.GetElementByTagAndClassName(el, "SPAN", " hide-lt-800 qcnt");
@@ -1118,7 +1144,7 @@ namespace QRZLibrary
 
             if (await GotoLogbook(ForceReload))
             {
-                HtmlElement el = await GetHTMLElementAsync("lbmenu", "listnav");
+                HtmlElement el = await GetHTMLElementWait("lbmenu", "listnav");
                 if (el != null)
                 {
                     HtmlElement el1 = QRZHelper.GetElementByTagAndClassName(el, "SPAN", "input-group-text  hide-lt-1100");
@@ -1214,7 +1240,7 @@ namespace QRZLibrary
 
             if (await GotoLoogbookPage(page) == page)
             {
-                HtmlElement table = await GetHTMLElementAsync("lblistrs", "lbtab");
+                HtmlElement table = await GetHTMLElementWait("lblistrs", "lbtab");
                 HtmlElementCollection rows = table.GetElementsByTagName("TR");
 
                 foreach (HtmlElement row in rows)
@@ -1247,6 +1273,26 @@ namespace QRZLibrary
         {
             string s = await wb2.CoreWebView2.ExecuteScriptAsync($"document.getElementById('{id}').innerHTML");
             return s;
+        }
+
+        private async Task<HtmlElement> GetHTMLElementWait(string parent, string id)
+        {
+            HtmlElement htmlElement = null;
+            Stopwatch stopwatch = new Stopwatch();
+            stopwatch.Start();
+
+            while (htmlElement == null)
+            {
+                if (stopwatch.ElapsedMilliseconds > 1000)
+                {
+                    htmlElement = await GetHTMLElementAsync(parent, id);
+                }
+
+                await Task.Delay(CpuSleep);
+                if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
+                    break;
+            }
+            return await GetHTMLElementAsync(parent, id);
         }
 
         private async Task<HtmlElement> GetHTMLElementAsync(string parent, string id)
@@ -1295,7 +1341,7 @@ namespace QRZLibrary
             List<LogbookEntry> ret = new List<LogbookEntry>();
             if (await GotoLoogbookPage(page) == page)
             {
-                HtmlElement table = await GetHTMLElementAsync("lblistrs", "lbtab");
+                HtmlElement table = await GetHTMLElementWait("lblistrs", "lbtab");
                 HtmlElement thead = QRZHelper.GetElementByTagAndClassName(table, "thead", "");
                 if (thead.TagName != null)
                 {
@@ -1399,7 +1445,7 @@ namespace QRZLibrary
                         {
                             if (await GotoLoogbookPage(i) == i)
                             {
-                                HtmlElement table = await GetHTMLElementAsync("lblistrs", "lbtab");
+                                HtmlElement table = await GetHTMLElementWait("lblistrs", "lbtab");
                                 HtmlElement thead = QRZHelper.GetElementByTagAndClassName(table, "thead", "");
                                 if (thead.TagName != null)
                                 {
@@ -1510,7 +1556,7 @@ namespace QRZLibrary
 
             if (await GotoLogbook())
             {
-                HtmlElement th_date = await GetHTMLElementAsync("lblistrs", "th_date");
+                HtmlElement th_date = await GetHTMLElementWait("lblistrs", "th_date");
                 if (th_date != null)
                 {
                     if (dateOrder == 0)
