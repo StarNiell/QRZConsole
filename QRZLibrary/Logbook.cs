@@ -1,1643 +1,660 @@
-﻿using Microsoft.Web.WebView2.Core;
-using Microsoft.Web.WebView2.WinForms;
-using QRZLibrary.Classes;
+#nullable enable
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
+using System.Globalization;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using System.Windows.Forms;
+using QRZConsole.Core.Data;
+using QRZConsole.Core.Models;
+using QRZConsole.Core.Scraping;
+using QRZConsole.Core.Services;
+using static QRZLibrary.BrowserSession;
 
 namespace QRZLibrary
 {
-    public class Logbook
+    /// <summary>
+    /// <see cref="ILogbookService"/> implemented by driving QRZ.com in an off-screen WebView2.
+    /// Page data is read with JavaScript that returns JSON (the *Script constants at the end) and
+    /// turned into models by <see cref="QrzPageParser"/>; ids and selectors are in <see cref="QrzSite"/>.
+    /// </summary>
+    public sealed class Logbook : ILogbookService
     {
+        /// <summary>Time given to an AJAX reload to show its spinner.</summary>
+        private static readonly TimeSpan SpinnerAppearWithin = TimeSpan.FromSeconds(1);
 
-        WebView2 wb2;
-        WebBrowser wb;
+        /// <summary>Pause before checking the result of an action the old code also waited for.</summary>
+        private static readonly TimeSpan ShortWait = TimeSpan.FromSeconds(1);
 
-        private bool flagDocumentCompleted = false;
-        private bool wbroDocumentCompleted = false;
+        /// <summary>Time given to optional content (e-mail, "seen before" table) to appear.</summary>
+        private static readonly TimeSpan OptionalContentWait = TimeSpan.FromSeconds(2);
 
-        private string _qrzUrl = "https://www.qrz.com/";
-        private string _logbookUrl = "https://logbook.qrz.com/";
-        private string _lookupUrl = "https://www.qrz.com/db/";
-        private string _addCallUrl = "https://logbook.qrz.com/logbook/?op=add;addcall=";
-        private string _qrz;
-        private string _password;
-        //private string _loginPage = "/login";
-        private long _pageLoadTimeOut = 30000;
-        private int _cpuSleep = 50;
-        private string lastCompletePageLoad = string.Empty;
-        private bool navigationError = false;
-        private List<BandFrequencyRange> bandFrequenciesRange;
-        private List<string> modes;
-        public string errorMessage = string.Empty;
-        public string outMsg = string.Empty;
+        private static readonly int[] ValidEntriesPerPage = { 5, 10, 15, 20, 25, 50, 100, 200 };
 
-        public string Qrz { get => _qrz; set => _qrz = value; }
-        public string Password { get => _password; set => _password = value; }
-        public string QrzUrl { get => _qrzUrl; set => _qrzUrl = value; }
-        public string LogbookUrl { get => _logbookUrl; set => _logbookUrl = value; }
-        public long PageLoadTimeOut { get => _pageLoadTimeOut; set => _pageLoadTimeOut = value; }
-        public int CpuSleep { get => _cpuSleep; set => _cpuSleep = value; }
-        public string LookupUrl { get => _lookupUrl; set => _lookupUrl = value; }
-        public string AddCallUrl { get => _addCallUrl; set => _addCallUrl = value; }
+        private BrowserSession? _browser;
+        private bool _verbose;
 
-        public Logbook()
+        public string Qrz { get; set; } = string.Empty;
+
+        public string Password { get; set; } = string.Empty;
+
+        public string ErrorMessage { get; private set; } = string.Empty;
+
+        public event Action<string>? Diagnostic;
+
+        public bool Verbose
         {
-            bandFrequenciesRange = QRZHelper.GetBandFrequencies();
-            modes = QRZHelper.GetModes();
-        }
-
-        public async Task IninWebView2()
-        {
-            try
+            get => _verbose;
+            set
             {
-                wb2 = new WebView2();
-                string environmentFolderName = Path.Combine(Path.GetTempPath(), $"QRZConsole");
-                CoreWebView2Environment cwv2Environment = await CoreWebView2Environment.CreateAsync(null, environmentFolderName, new CoreWebView2EnvironmentOptions());
-                await wb2.EnsureCoreWebView2Async(cwv2Environment);
-
-                wb2.NavigationCompleted += Wb2_NavigationtCompleted;
-                wb2.NavigationStarting += Wb2_NavigationStarting;
-                wb2.SourceChanged += Wb2_SourceChanged;
-                wb2.ContentLoading += Wb2_ContentLoading;
-
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message + Environment.NewLine + Environment.NewLine + ex.StackTrace);
+                _verbose = value;
+                if (_browser != null) _browser.Verbose = value;
             }
         }
 
-        private void Wb2_ContentLoading(object sender, CoreWebView2ContentLoadingEventArgs e)
+        private BrowserSession Browser => _browser ?? throw new InvalidOperationException("The browser is not initialized yet.");
+
+        public async Task InitializeAsync()
         {
-            Debug.WriteLine($"  Wb2_ContentLoading > IsErrorPage: {e.IsErrorPage}");
-            if (e.IsErrorPage)
+            _browser = await BrowserSession.CreateAsync();
+            _browser.Verbose = _verbose;
+            _browser.Diagnostic += message => Diagnostic?.Invoke(message);
+        }
+
+        #region Account
+
+        public async Task<bool> IsLoggedAsync()
+        {
+            string url = Browser.Url;
+            bool onQrzPage = url.Length > 0 && url != "about:blank"
+                             && (url.Contains(QrzSite.Urls.Home) || url.Contains(QrzSite.Urls.Logbook) || url.Contains(QrzSite.Urls.Lookup));
+
+            if (!onQrzPage && !await GotoQrzHomeAsync())
+                return false;
+
+            return await Browser.TestAsync($"document.querySelector({Js(QrzSite.Navigation.Menu)}).textContent.includes('Logout')");
+        }
+
+        public async Task<bool> LoginAsync()
+        {
+            ErrorMessage = string.Empty;
+
+            if (!await Browser.NavigateAsync(QrzSite.Urls.Login) || Browser.Title != QrzSite.Titles.Login)
+                return Fail("Unable to open the login page.");
+
+            // Step 1: username. The site then shows the operator name, or an error.
+            await Browser.SetValueAsync(QrzSite.LoginForm.Username, Qrz);
+            await Browser.RunAsync(QrzSite.LoginForm.NextStepScript);
+
+            string fullName = $"(e => e ? e.innerText : '')(document.getElementById({Js(QrzSite.LoginForm.FullName)}))";
+            string userError = $"(e => e ? e.innerText : '')(document.getElementById({Js(QrzSite.LoginForm.UsernameError)}))";
+            bool usernameAccepted = false;
+
+            await Browser.WaitUntilAsync(async () =>
             {
-                navigationError = true;
+                string name = await Browser.TextAsync(fullName);
+                if (name.Length > 0 && name != "Non Ham User")
+                {
+                    usernameAccepted = true;
+                    return true;
+                }
+
+                if ((await Browser.TextAsync(userError)).Length > 0)
+                {
+                    ErrorMessage = "Invalid username!";
+                    return true;
+                }
+                return false;
+            }, "login: username accepted");
+
+            if (!usernameAccepted)
+                return false;
+
+            // Step 2: password. Success lands on the callsign database page.
+            await Browser.SetValueAsync(QrzSite.LoginForm.Password, Password);
+            await Browser.RunAsync(QrzSite.LoginForm.NextStepScript);
+            await Task.Delay(ShortWait); // let the page react before reading title and alerts
+
+            string invalidAlert = $"document.querySelector({Js(QrzSite.LoginForm.InvalidPasswordAlert)}).innerText.includes({Js(QrzSite.LoginForm.InvalidPasswordText)})";
+            bool loggedIn = false;
+
+            await Browser.WaitUntilAsync(async () =>
+            {
+                if (Browser.Title == QrzSite.Titles.AfterLogin)
+                {
+                    loggedIn = true;
+                    return true;
+                }
+
+                if (Browser.Title == QrzSite.Titles.Login && await Browser.TestAsync(invalidAlert))
+                {
+                    ErrorMessage = "Invalid username or password!";
+                    return true;
+                }
+                return false;
+            }, "login: password accepted");
+
+            return loggedIn;
+        }
+
+        public async Task<bool> LogOutAsync()
+        {
+            if (!await IsLoggedAsync())
+                return false;
+
+            string menu = $"document.querySelector({Js(QrzSite.Navigation.MenuAny)}).textContent";
+            if (!await Browser.TestAsync($"{menu}.includes('Logout')"))
+                return false;
+
+            string link;
+            if (await Browser.TestAsync($"{menu}.includes('Edit')"))
+                link = Browser.Url.Contains("op=add;addcall") ? QrzSite.Navigation.LogoutOnAddPage : QrzSite.Navigation.LogoutWithEditMenu;
+            else
+                link = QrzSite.Navigation.LogoutDefault;
+
+            return await Browser.RunAsync($"document.querySelector({Js(link)}).click()");
+        }
+
+        #endregion
+
+        #region Navigation
+
+        public Task<bool> GotoQrzHomeAsync() => Browser.NavigateAsync(QrzSite.Urls.Home);
+
+        public Task<bool> GotoLogbookAsync() => GotoLogbookAsync(forceReload: false);
+
+        private async Task<bool> GotoLogbookAsync(bool forceReload)
+        {
+            if (!forceReload && Browser.Title == QrzSite.Titles.Logbook
+                && await Browser.IdExistsAsync(QrzSite.Logbook.PageMarker)
+                && await Browser.IdExistsAsync(QrzSite.Logbook.AddCallBox))
+            {
+                return true;
             }
+
+            if (!await Browser.NavigateAsync(QrzSite.Urls.Logbook) || Browser.Title != QrzSite.Titles.Logbook)
+                return false;
+
+            // The QSO list may be (re)loaded via AJAX right after the page load.
+            await Browser.WaitForIdleAsync(QrzSite.Logbook.Loading, SpinnerAppearWithin);
+            return true;
         }
 
-        private void Wb2_SourceChanged(object sender, CoreWebView2SourceChangedEventArgs e)
+        private async Task<bool> GotoLookupAsync()
         {
-            Debug.WriteLine($"  Wb2_SourceChanged > IsNewDocument: {e.IsNewDocument}");
+            if (await Browser.IdExistsAsync(QrzSite.Lookup.QueryBox))
+                return true;
+
+            return await Browser.NavigateAsync(QrzSite.Urls.Lookup)
+                   && (Browser.Title == QrzSite.Titles.LookupSearch || Browser.Title == QrzSite.Titles.Home);
         }
 
-        private void Wb2_NavigationStarting(object sender, CoreWebView2NavigationStartingEventArgs e)
+        /// <summary>Opens the "add QSO" form for a callsign.</summary>
+        private async Task<bool> OpenAddCallAsync(string call)
         {
-            Debug.WriteLine($"  Wb2_NavigationStarting {e.Uri}");
+            return await Browser.NavigateAsync(QrzSite.Urls.AddCall + Uri.EscapeDataString(call))
+                   && Browser.Title == QrzSite.Titles.Logbook
+                   && await Browser.IdExistsAsync(QrzSite.QsoForm.RstSent);
         }
 
-        #region Private Methods
-        private void Wb2_NavigationtCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)
-        {
-            flagDocumentCompleted = true;
-            lastCompletePageLoad = wb2.Source.ToString();
-            Debug.WriteLine($"Wb2_NavigationtCompleted - Url={lastCompletePageLoad}");
-        }
+        #endregion
 
-        private async Task<bool> NavigateAndWait(string Url)
-        {
-            Debug.WriteLine($">>>>> NavigateAndWait: {Url} start...");
-            await NavigateAndWait(Url, PageLoadTimeOut);
-            Debug.WriteLine($"***** NavigateAndWait: {Url} COMPLETE *******");
-            return lastCompletePageLoad == Url;
-        }
+        #region Lookup
 
-        private async Task<bool> NavigateAndWait(string Url, long timeout)
+        public async Task<LookupEntry?> LookupAsync(string call)
         {
-            lastCompletePageLoad = string.Empty;
-            Stopwatch stopwatch = new Stopwatch();
-            stopwatch.Start();
-            navigationError = false;
-            wb2.CoreWebView2.Navigate(Url);
-            while (lastCompletePageLoad != Url)
+            call = call.ToUpperInvariant();
+            if (!await GotoLookupAsync())
+                return null;
+
+            if (Browser.Title == QrzSite.Titles.Home)
+                return new LookupEntry { QRZ = call, Name = "Too many lookups" };
+
+            // Mark the current document: a result is accepted only from a new page, or when the
+            // callsign box already shows the requested call (so a previous result is never read).
+            await Browser.RunAsync("window.__qrzConsoleOldPage = true");
+            await Browser.RunAsync($"document.querySelector({Js(QrzSite.Lookup.QueryInput)}).value = {Js(call)}");
+            await Browser.ClickAsync(QrzSite.Lookup.Submit);
+
+            string callData = $"document.getElementById({Js(QrzSite.Lookup.CallDataId)})";
+            string resultArea = $"document.getElementById({Js(QrzSite.Lookup.ResultArea)})";
+            string noResults = $"({resultArea} !== null && {resultArea}.innerText.includes({Js("no results for " + call)}))";
+            string showsCall = $"({callData} !== null && {callData}.children.length > 0 && " +
+                               $"{callData}.children[0].innerText.toUpperCase().replace(/Ø/g, '0').includes({Js(call)}))";
+            string newPage = $"(window.__qrzConsoleOldPage !== true && {resultArea} !== null && ({callData} !== null || {noResults}))";
+
+            if (!await Browser.WaitForAsync($"{newPage} || {showsCall} || {noResults}", $"lookup result for {call}"))
+                return null;
+
+            if (!await Browser.TestAsync($"{callData} !== null"))
+                return new LookupEntry { QRZ = call, Name = "No result found!" };
+
+            // Reveal the e-mail address and give it a moment to appear (not every operator has one).
+            await Browser.RunAsync(QrzSite.Lookup.ShowEmailScript);
+            await Browser.WaitUntilAsync(() => Browser.TestAsync($"{callData}.children[5].innerText.includes('@')"),
+                                         "e-mail address", OptionalContentWait, reportTimeout: false);
+
+            RawLookup? raw = await Browser.EvalAsync<RawLookup>(ExtractLookupScript);
+            if (raw == null)
             {
-                await Task.Delay(CpuSleep);
-                if (stopwatch.ElapsedMilliseconds >= timeout)
-                    return false;
-                if (navigationError)
-                    return false;
+                Browser.Report("Lookup: unable to read the callsign data box");
+                return null;
+            }
+
+            return QrzPageParser.MapLookup(raw);
+        }
+
+        public async Task<string> CheckWorkedRawAsync(string call)
+        {
+            if (!await OpenAddCallAsync(call.ToUpperInvariant()))
+                return string.Empty;
+
+            // The "seen before" table is there only if the call was worked; give it time to load.
+            string table = $"document.querySelector({Js(QrzSite.Logbook.SeenBeforeTable)})";
+            await Browser.WaitUntilAsync(() => Browser.TestAsync($"{table} !== null"), "seen before table",
+                                         OptionalContentWait, reportTimeout: false);
+
+            List<List<string>>? rows = await Browser.EvalAsync<List<List<string>>>(
+                $"(t => t ? Array.from(t.querySelectorAll('tr')).map(r => Array.from(r.querySelectorAll('td')).map(c => c.innerText)) : null)({table})");
+
+            return rows == null ? string.Empty : QrzPageParser.FormatAllRows(rows);
+        }
+
+        #endregion
+
+        #region Logbook pages
+
+        public async Task<int> GetQsoCountAsync()
+        {
+            if (!await GotoLogbookAsync() || !await Browser.WaitForElementAsync(QrzSite.Logbook.QsoCount))
+                return -1;
+
+            return QrzPageParser.ParseInt(await Browser.TextAsync($"document.querySelector({Js(QrzSite.Logbook.QsoCount)}).innerText"));
+        }
+
+        public async Task<int> GetLogbookPagesAsync()
+        {
+            if (!await GotoLogbookAsync() || !await Browser.WaitForElementAsync(QrzSite.Logbook.PageCountLabel))
+                return -1;
+
+            return QrzPageParser.ParseInt(await Browser.TextAsync($"document.querySelector({Js(QrzSite.Logbook.PageCountLabel)}).innerText"));
+        }
+
+        public async Task<int> GetCurrentLogbookPageAsync()
+        {
+            if (!await GotoLogbookAsync() || !await Browser.IdExistsAsync(QrzSite.Logbook.PageMarker))
+                return -1;
+
+            int page = QrzPageParser.ParseInt(await Browser.GetValueAttributeAsync(QrzSite.Logbook.PageInput));
+            return page > 0 ? page : -1;
+        }
+
+        public async Task<int> GotoLogbookPageAsync(int page)
+        {
+            if (!await GotoLogbookAsync() || !await Browser.IdExistsAsync(QrzSite.Logbook.PageInput))
+                return -1;
+
+            if (await Browser.GetValueAttributeAsync(QrzSite.Logbook.PageInput) == page.ToString(CultureInfo.InvariantCulture))
+                return page;
+
+            await Browser.SetValueAsync(QrzSite.Logbook.PageInput, page.ToString(CultureInfo.InvariantCulture));
+            await Browser.RunAsync(QrzSite.Logbook.GotoPageScript);
+
+            if (!await Browser.WaitForSpinnerAsync(QrzSite.Logbook.Loading, SpinnerAppearWithin))
+                return -1;
+
+            return await GetCurrentLogbookPageAsync();
+        }
+
+        public async Task<int> GetEntriesForPageAsync()
+        {
+            if (!await GotoLogbookAsync())
+                return -1;
+
+            return QrzPageParser.ParseInt(await Browser.GetValueAsync(QrzSite.Logbook.RowsPerPage));
+        }
+
+        public async Task<int> SetEntriesForPageAsync(int entries)
+        {
+            ErrorMessage = string.Empty;
+            if (!ValidEntriesPerPage.Contains(entries))
+            {
+                Fail("Invalid parameter! Enter one of the following values: 5, 10, 15, 20, 25, 50, 100, 200");
+                return -1;
+            }
+
+            int current = await GetEntriesForPageAsync();
+            if (current <= 0)
+                return -1;
+            if (current == entries)
+                return entries;
+
+            await Browser.SetValueAsync(QrzSite.Logbook.RowsPerPage, entries.ToString(CultureInfo.InvariantCulture));
+            await Browser.RunAsync(QrzSite.Logbook.RowsPerPageScript);
+
+            if (!await Browser.WaitForSpinnerAsync(QrzSite.Logbook.Loading, SpinnerAppearWithin))
+                return -1;
+
+            return await GotoLogbookAsync(forceReload: true) ? await GetEntriesForPageAsync() : -1;
+        }
+
+        public async Task<string> GetLogbookPageContentRawAsync(int page)
+        {
+            if (await GotoLogbookPageAsync(page) != page
+                || !await Browser.WaitForAsync($"{FindTableExpression} !== null", "logbook table"))
+                return string.Empty;
+
+            List<List<string>>? rows = await Browser.EvalAsync<List<List<string>>>(
+                $"(t => t ? Array.from(t.querySelectorAll('tr')).map(r => Array.from(r.querySelectorAll('td')).map(c => c.innerText)) : null)" +
+                $"({FindTableExpression})");
+
+            return rows == null ? string.Empty : QrzPageParser.FormatRawRows(rows);
+        }
+
+        public async Task<IReadOnlyList<LogbookEntry>> GetLogbookPageContentAsync(int page)
+        {
+            if (await GotoLogbookPageAsync(page) != page)
+                return Array.Empty<LogbookEntry>();
+
+            RawLogbookTable? table = await ReadLogbookTableAsync();
+            return table == null ? Array.Empty<LogbookEntry>() : QrzPageParser.MapPage(table);
+        }
+
+        public async Task<IReadOnlyList<LogbookEntry>> GetLogbookEntriesByRangeAsync(int start, int end)
+        {
+            var result = new List<LogbookEntry>();
+            if (start < 1 || start > end)
+                return result;
+
+            int perPage = await GetEntriesForPageAsync();
+            if (perPage <= 0)
+                return result;
+
+            int firstPage = QrzPageParser.PageOfPosition(start, perPage);
+            int lastPage = QrzPageParser.PageOfPosition(end, perPage);
+
+            for (int page = firstPage; page <= lastPage; page++)
+            {
+                if (await GotoLogbookPageAsync(page) != page)
+                    break;
+
+                RawLogbookTable? table = await ReadLogbookTableAsync();
+                if (table == null)
+                    break;
+
+                result.AddRange(QrzPageParser.MapRange(table, start, end));
+            }
+
+            return result;
+        }
+
+        public async Task<bool> SetLogbookDateOrderAsync(bool descending)
+        {
+            if (!await GotoLogbookAsync() || !await Browser.WaitForElementAsync(QrzSite.Logbook.DateHeader))
+                return false;
+
+            // As in the original logic: to sort ascending the header must end up with class
+            // sortDesc (and vice versa); clicking it switches the order.
+            string toClick = descending ? QrzSite.Logbook.SortDescClass : QrzSite.Logbook.SortAscClass;
+            string expected = descending ? QrzSite.Logbook.SortAscClass : QrzSite.Logbook.SortDescClass;
+            string className = $"document.getElementById({Js(QrzSite.Logbook.DateHeaderId)}).className";
+
+            if (await Browser.TestAsync($"{className}.includes({Js(toClick)})"))
+            {
+                await Browser.ClickAsync(QrzSite.Logbook.DateHeaderId);
+                await Task.Delay(ShortWait);
+                return await Browser.WaitForAsync($"{className}.includes({Js(expected)})", "date order change");
+            }
+
+            return await Browser.TestAsync($"{className}.includes({Js(expected)})");
+        }
+
+        private const string FindTableExpression =
+            "(document.querySelector('" + QrzSite.Logbook.Table + "') || document.getElementById('" + QrzSite.Logbook.TableId + "'))";
+
+        /// <summary>Waits for the logbook table and reads header ids and rows.</summary>
+        private async Task<RawLogbookTable?> ReadLogbookTableAsync()
+        {
+            if (!await Browser.WaitForAsync($"{FindTableExpression} !== null", "logbook table"))
+                return null;
+
+            RawLogbookTable? table = await Browser.EvalAsync<RawLogbookTable>(ExtractTableScript);
+            if (table == null || table.Headers.Count == 0)
+            {
+                Browser.Report("Logbook table found but its header could not be read");
+                return null;
+            }
+            return table;
+        }
+
+        #endregion
+
+        #region Add / edit / delete QSO
+
+        public async Task<bool> AddQsoAsync(QsoData qso)
+        {
+            ErrorMessage = string.Empty;
+            if (!await OpenAddCallAsync(qso.Call))
+                return Fail("Unable to open the add QSO form.");
+
+            if (!await FillQsoFormAsync(qso))
+                return false;
+
+            if (await Browser.IdExistsAsync(QrzSite.QsoForm.Save))
+                await Browser.ClickAsync(QrzSite.QsoForm.Save);
+
+            return await Browser.WaitForSpinnerAsync(QrzSite.Logbook.Loading, SpinnerAppearWithin);
+        }
+
+        public async Task<bool> EditQsoAsync(int position, QsoData qso)
+        {
+            ErrorMessage = string.Empty;
+            if (!await OpenRecordAsync(position))
+                return false;
+
+            bool editFormOpen = await Browser.WaitForNavigationAsync(() => Browser.RunAsync(QrzSite.Logbook.EditScript), "QSO edit form")
+                                && Browser.Title == QrzSite.Titles.Logbook
+                                && await Browser.WaitForElementAsync("#" + QrzSite.QsoForm.StartDate);
+            if (!editFormOpen)
+                return Fail("Unable to open the edit form.");
+
+            if (!await FillQsoFormAsync(qso))
+                return false;
+
+            if (await Browser.IdExistsAsync(QrzSite.QsoForm.Save))
+                await Browser.ClickAsync(QrzSite.QsoForm.Save);
+
+            await Task.Delay(ShortWait);
+            return await Browser.WaitUntilAsync(async () => Browser.Title == QrzSite.Titles.Logbook && await IsQsoDetailShownAsync(),
+                                                "QSO detail after saving");
+        }
+
+        public async Task<bool> DeleteQsoAsync(int position)
+        {
+            ErrorMessage = string.Empty;
+            if (!await OpenRecordAsync(position))
+                return false;
+
+            string form = $"document.getElementById({Js(QrzSite.Logbook.RecordForm)})";
+            await Browser.RunAsync($"{form}.getElementsByTagName('input').namedItem('op').value = {Js(QrzSite.Logbook.DeleteOperation)}");
+
+            return await Browser.WaitForNavigationAsync(() => Browser.RunAsync($"{form}.submit()"), "logbook after delete")
+                   && Browser.Title == QrzSite.Titles.Logbook
+                   && await Browser.WaitForElementAsync("#" + QrzSite.Logbook.AddCallBox);
+        }
+
+        /// <summary>Opens the detail page of the QSO at a logbook position (1-based).</summary>
+        private async Task<bool> OpenRecordAsync(int position)
+        {
+            int perPage = await GetEntriesForPageAsync();
+            int page = QrzPageParser.PageOfPosition(position, perPage);
+            if (page < 1 || await GotoLogbookPageAsync(page) != page)
+                return Fail($"Unable to show the logbook page with position {position}.");
+
+            RawLogbookTable? table = await ReadLogbookTableAsync();
+            RawLogbookRow? row = table?.Rows.FirstOrDefault(r => QrzPageParser.RowPosition(r) == position);
+            if (row == null)
+                return Fail($"QSO at position {position} not found.");
+
+            string form = $"document.getElementById({Js(QrzSite.Logbook.RecordForm)})";
+            await Browser.RunAsync($"{form}.getElementsByTagName('input').namedItem('bookid').value = {Js(row.BookId)}");
+            await Browser.RunAsync($"{form}.getElementsByTagName('input').namedItem('logpos').value = {Js(row.Pos)}");
+
+            bool opened = await Browser.WaitForNavigationAsync(() => Browser.RunAsync($"{form}.submit()"), $"QSO detail at position {position}")
+                          && Browser.Title == QrzSite.Titles.Logbook
+                          && await Browser.WaitUntilAsync(IsQsoDetailShownAsync, "QSO detail");
+
+            return opened || Fail($"Unable to open the QSO at position {position}.");
+        }
+
+        private Task<bool> IsQsoDetailShownAsync()
+        {
+            return Browser.TestAsync($"(b => b !== null && b.innerText.includes({Js(QrzSite.Logbook.QsoDetailText)}))" +
+                                     $"(document.getElementById({Js(QrzSite.Logbook.Body)}))");
+        }
+
+        /// <summary>Fills date, time, frequency/band, mode, RST and comment of the add/edit form.</summary>
+        private async Task<bool> FillQsoFormAsync(QsoData qso)
+        {
+            if (!DateTime.TryParse(qso.Date, CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+                return Fail($"Invalid date \"{qso.Date}\" (use yyyy-MM-dd).");
+
+            if (!TimeSpan.TryParse(qso.Time, CultureInfo.InvariantCulture, out _))
+                return Fail($"Invalid time \"{qso.Time}\" (use HH:mm).");
+
+            if (!HamData.TryParseMHz(qso.Frequency, out double mhz))
+                return Fail($"Invalid frequency \"{qso.Frequency}\".");
+
+            string? band = HamData.FindBand(mhz);
+            if (band == null)
+                return Fail($"Frequency {qso.Frequency} MHz is outside the amateur bands.");
+
+            if (!HamData.IsValidMode(qso.Mode))
+                return Fail($"Mode \"{qso.Mode}\" is not accepted by the QRZ logbook.");
+
+            // Fields the old code required (the others are set only when present).
+            string[] required =
+            {
+                QrzSite.QsoForm.StartDate, QrzSite.QsoForm.EndDate, QrzSite.QsoForm.StartTime, QrzSite.QsoForm.EndTime,
+                QrzSite.QsoForm.Freq2, QrzSite.QsoForm.Band2, QrzSite.QsoForm.Band1,
+                QrzSite.QsoForm.RstSent, QrzSite.QsoForm.RstReceived
+            };
+            foreach (string id in required)
+            {
+                if (!await Browser.IdExistsAsync(id))
+                    return Fail($"Field #{id} not found in the QSO form.");
+            }
+
+            await Browser.SetValueAsync(QrzSite.QsoForm.StartDate, qso.Date);
+            await Browser.SetValueAsync(QrzSite.QsoForm.EndDate, qso.Date);
+            await Browser.SetValueAsync(QrzSite.QsoForm.StartTime, qso.Time);
+            await Browser.SetValueAsync(QrzSite.QsoForm.EndTime, qso.Time);
+
+            // The old code also called the site's setFreq()/setMode() with malformed JavaScript
+            // (setFreq('2, '0')), so they never ran: band and mode are set directly, as before.
+            await Browser.SetValueAsync(QrzSite.QsoForm.Freq2, qso.Frequency);
+            await Browser.SetValueAsync(QrzSite.QsoForm.Band2, band);
+            await SetIfPresentAsync(QrzSite.QsoForm.Freq1, qso.Frequency);
+            await Browser.SetValueAsync(QrzSite.QsoForm.Band1, band);
+            await SetIfPresentAsync(QrzSite.QsoForm.Mode2, qso.Mode);
+            await SetIfPresentAsync(QrzSite.QsoForm.Mode1, qso.Mode);
+            await Browser.SetValueAsync(QrzSite.QsoForm.RstSent, QrzSite.QsoForm.DefaultRst);
+            await Browser.SetValueAsync(QrzSite.QsoForm.RstReceived, QrzSite.QsoForm.DefaultRst);
+
+            if (qso.Comment.Length > 0)
+            {
+                bool commentSet = await Browser.ExistsAsync(QrzSite.QsoForm.Comments)
+                                  && await Browser.SetValueBySelectorAsync(QrzSite.QsoForm.Comments, qso.Comment);
+                if (!commentSet)
+                    Browser.Report($"Comment not saved: field {QrzSite.QsoForm.Comments} not found (use \"bf comment\" on the add QSO page)");
             }
 
             return true;
         }
 
-        private async Task<string> GetElementValueAsync(string id, string attribute = "value")
+        private async Task<bool> SetIfPresentAsync(string id, string value)
         {
-            string s = await wb2.CoreWebView2.ExecuteScriptAsync($"document.getElementById('{id}').getAttribute('{attribute}')");
-            return s.Replace("\"", "");
+            return await Browser.IdExistsAsync(id) && await Browser.SetValueAsync(id, value);
         }
 
-        private async Task<string> GetValueElementAsync(string id)
+        private bool Fail(string message)
         {
-            string s = await wb2.CoreWebView2.ExecuteScriptAsync($"document.getElementById('{id}').value");
-            return s.Replace("\"", "");
-        }
-
-        private async Task SetElementValueAsync(string id, string value)
-        {
-            await wb2.CoreWebView2.ExecuteScriptAsync($"document.getElementById('{id}').value = '{value}'");
-        }
-
-        //private async Task<object> GetJSValue(string jsCode)
-        //{
-        //    return await wb2.CoreWebView2.ExecuteScriptAsync($"eval('{jsCode}')");
-        //}
-
-        private async Task SetElementValue(string id, string value)
-        {
-            await wb2.CoreWebView2.ExecuteScriptAsync($"document.getElementById('{id}').value='{value}'");
-        }
-
-        //private void SetValueByParentElementAndTagnameAndClassName(string parentId, string tagname, string classname, string value)
-        //{
-        //    wb2.CoreWebView2.ExecuteScriptAsync($"document.querySelector('#{parentId} {tagname}.{classname}').value='{value}'");
-        //}
-
-        private async Task<string> ExecuteScriptAsync(string script)
-        {
-            return await wb2.CoreWebView2.ExecuteScriptAsync(script);
-        }
-
-        public async Task<bool> IsLogged()
-        {
-            bool ret = false;
-            bool pageLoaded = false;
-
-            if (wb2.CoreWebView2.Source != null && wb2.CoreWebView2.Source != "about:blank")
-            {
-                pageLoaded = (wb2.Source.OriginalString.Contains(_qrzUrl))
-                          || (wb2.Source.OriginalString.Contains(_logbookUrl))
-                          || (wb2.Source.OriginalString.Contains(_lookupUrl));
-                //pageLoaded = false;
-            }
-
-            if (!pageLoaded)
-                pageLoaded = await GotoQrzHome();
-
-            if (pageLoaded)
-            {
-                string s = await GetScriptResult("document.querySelector('nav ul.primary-navigation').textContent.includes('Logout');");
-                ret = (s == "true");
-            }
-            return ret;
-        }
-
-        public async Task<bool> Login()
-        {
-            return await Login(Qrz, Password);
-        }
-
-        public async Task<bool> Login(string Qrz, string Password)
-        {
-            bool ret = false;
-            errorMessage = string.Empty;
-            bool stepDone = false;
-            bool waitDone = false;
-            Stopwatch stopwatch;
-
-            lastCompletePageLoad = "";
-            if (await NavigateAndWait("https://www.qrz.com/login"))
-            {
-                if (wb2.CoreWebView2.DocumentTitle == "Login - QRZ.com")
-                {
-                    // Set the username ***************************************************************
-                    await SetElementValueAsync("username", Qrz);
-
-                    await ExecuteScriptAsync("next();");
-
-                    //wait for new step -----------
-                    stopwatch = new Stopwatch();
-                    stopwatch.Start();
-
-                    string fullname;
-
-                    while (!waitDone)
-                    {
-                        fullname = await GetScriptResult("document.getElementById('fullname') ? document.getElementById('fullname').innerText : ''");
-
-                        stepDone = waitDone = (fullname != "" && fullname != "Non Ham User");
-                        if (!waitDone)
-                        {
-                            string usernameError = await GetScriptResult("document.getElementById('usernameError').innerText");
-                            if (usernameError != "")
-                            {
-                                errorMessage = "Invalid username!";
-                                waitDone = true;
-                            }
-                        }
-
-                        await Task.Delay(CpuSleep);
-                        if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
-                        {
-                            break;
-                        }
-                    }
-
-                    if (!stepDone)
-                        return false;
-
-                    // Set the password ***************************************************************
-                    await SetElementValueAsync("password", Password);
-                    await ExecuteScriptAsync("next();");
-
-                    //wait for new step -----------
-                    waitDone = false;
-                    stepDone = false;
-
-                    stopwatch = new Stopwatch();
-                    stopwatch.Start();
-
-                    while (!waitDone)
-                    {
-                        if (stopwatch.ElapsedMilliseconds > 1000)
-                        {
-                            stepDone = waitDone = (wb2.CoreWebView2.DocumentTitle == "Callsign Database - QRZ.com");
-                            if (wb2.CoreWebView2.DocumentTitle == "Login - QRZ.com")
-                            {
-                                bool alertContainer = await ExecuteScriptAsync("document.querySelector('body > div.container-fluid.main-content.theme-showcase > div > div.alert-container > div.alert.alert-warning').innerText.includes('Invalid username or password')") == "true";
-                                if (alertContainer)
-                                {
-                                    errorMessage = "Invalid username or password!";
-                                    waitDone = true;
-                                }
-                            }
-                        }
-
-                        await Task.Delay(CpuSleep);
-                        if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
-                        {
-                            break;
-                        }
-                    }
-
-                    if (!stepDone)
-                        return false;
-                    else
-                        ret = true;
-
-                }
-            }
-            return ret;
-        }
-
-        public async Task<bool> LogOut()
-        {
-            bool ret = false;
-
-            if (await IsLogged())
-            {
-                if (await ExecuteScriptAsync("document.querySelector('ul.primary-navigation').textContent.includes('Logout');") == "true")
-                {
-                    if (await ExecuteScriptAsync("document.querySelector('ul.primary-navigation').textContent.includes('Edit');") == "true")
-                    {
-                        if (wb2.CoreWebView2.Source.Contains("op=add;addcall"))
-                        {
-                            await wb2.CoreWebView2.ExecuteScriptAsync("document.querySelector('#qrztop > nav > ul.primary-navigation > li.leaf.last > ul > li:nth-child(7) > a').click();");
-                        }
-                        else
-                        {
-                            await wb2.CoreWebView2.ExecuteScriptAsync("document.querySelector('body > div.qrztop > nav > ul.primary-navigation > li:nth-child(10) > ul > li:nth-child(7) > a').click();");
-                        }
-                    }
-                    else
-                        await wb2.CoreWebView2.ExecuteScriptAsync("document.querySelector('body > div.qrztop > nav > ul.primary-navigation > li:nth-child(10) > ul > li:nth-child(6) > a').click();");
-                    ret = true;
-                }
-            }
-            return ret;
-        }
-
-        public async Task<bool> GotoQrzHome()
-        {
-            return await NavigateAndWait(QrzUrl);
-        }
-
-        public async Task<bool> GotoLogbook(bool ForceReload = false)
-        {
-            bool ret = (!ForceReload && wb2.CoreWebView2.DocumentTitle == "Logbook by QRZ.COM");
-            ret = ret && await GetScriptResult("document.getElementById('button-addon4') != null && document.getElementById('addcall') != null;") == "true";
-            if (!ret)
-            {
-                if (await NavigateAndWait(LogbookUrl))
-                    ret = wb2.CoreWebView2.DocumentTitle == "Logbook by QRZ.COM";
-            }
-
-            return ret;
-        }
-
-        public async Task<bool> GotoLookup(bool ForceReload = false)
-        {
-            bool ret = (!ForceReload && await ExecuteScriptAsync("document.getElementById('tquery') != null") == "true");
-            if (!ret)
-            {
-                lastCompletePageLoad = "";
-                if (await NavigateAndWait(LookupUrl))
-                    ret = (wb2.CoreWebView2.DocumentTitle == "QRZ Callsign Database Search by QRZ Ham Radio" || wb2.CoreWebView2.DocumentTitle == "The Home for Amateur Radio by QRZ Ham Radio");
-            }
-            return ret;
-        }
-
-        private async Task<bool> StartAddCall(string QRZToCall)
-        {
-            bool ret = false;
-            if (await NavigateAndWait($"{AddCallUrl}{QRZToCall}"))
-            {
-                ret = wb2.CoreWebView2.DocumentTitle.Equals("Logbook by QRZ.COM")
-                    && (await ExecuteScriptAsync("document.getElementById('rst_sent') != null") == "true");
-            }
-            return ret;
-        }
-
-        // Add QSO into Logbook
-        public async Task<bool> AddQSOToLogbook(string qrzToCall, string freq, string mode, string date, string time, string comment)
-        {
-            bool ret = false;
-
-            if (await StartAddCall(qrzToCall))
-            {
-                if (await SetQSOData(qrzToCall, freq, mode, date, time, comment))
-                {
-                    Stopwatch stopwatch = new Stopwatch();
-                    stopwatch.Start();
-
-                    bool PageLoaded = false;
-
-                    if (await ExecuteScriptAsync("document.getElementById('savebut') != null") == "true")
-                    {
-                        await ExecuteScriptAsync("document.getElementById('savebut').click()");
-                    }
-
-                    while (!PageLoaded)
-                    {
-                        if (stopwatch.ElapsedMilliseconds > 1000)
-                        {
-                            if (await GetScriptResult("document.getElementById('filterLoading')") != "null")
-                            {
-                                await EvalJS("document.getElementById('filterLoading').style");
-                                string style = await GetScriptResult("document.getElementById('filterLoading').getAttribute('style')");
-                                if (style.Contains("display:none"))
-                                {
-                                    PageLoaded = true;
-                                }
-                            }
-                        }
-
-                        await Task.Delay(CpuSleep);
-                        if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
-                            break;
-                    }
-
-                    ret = PageLoaded;
-                }
-            }
-
-            return ret;
-        }
-
-        public async Task<bool> EditQSOToLogbook(int position, string qrzToCall, string freq, string mode, string date, string time, string comment)
-        {
-            bool ret = false;
-
-            if (await StartEditQSO(position))
-            {
-                if (await SetQSOData(qrzToCall, freq, mode, date, time, comment))
-                {
-                    Stopwatch stopwatch = new Stopwatch();
-                    stopwatch.Start();
-
-                    bool PageLoaded = false;
-                    //flagDocumentCompleted = false;
-                    if (await ExecuteScriptAsync("document.getElementById('savebut') != null") == "true")
-                    {
-                        await ExecuteScriptAsync("document.getElementById('savebut').click()");
-                    }
-
-                    while (!PageLoaded)
-                    {
-                        if (stopwatch.ElapsedMilliseconds > 1000)
-                        {
-                            //if (flagDocumentCompleted)
-                            //{
-                                if ((wb2.CoreWebView2.DocumentTitle == "Logbook by QRZ.COM"))
-                                {
-                                    if (await ExecuteScriptAsync("document.getElementById('lb_body') != null") == "true")
-                                    {
-                                        PageLoaded = (await ExecuteScriptAsync("document.getElementById('lb_body').innerText.includes('QSO Detail')") == "true");
-                                    }
-                                }
-
-                            //}
-                        }
-
-                        await Task.Delay(CpuSleep);
-                        if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
-                            break;
-                    }
-
-                    ret = PageLoaded;
-                }
-            }
-
-            return ret;
-        }
-
-        public async Task<bool> DeleteQSOFromLogbook(int position)
-        {
-            bool ret = false;
-
-            if (await OpenQSORecord(position))
-            {
-                await ExecuteScriptAsync("document.getElementById('lbmenu').getElementsByTagName('input').namedItem('op').value = 'logdel';");
-
-                bool PageLoaded = false;
-
-                Stopwatch stopwatch = new Stopwatch();
-                stopwatch.Start();
-                flagDocumentCompleted = false;
-                await ExecuteScriptAsync("document.getElementById('lbmenu').submit()");
-                while (!PageLoaded)
-                {
-                    if (flagDocumentCompleted)
-                    {
-                        if ((wb2.CoreWebView2.DocumentTitle == "Logbook by QRZ.COM"))
-                        {
-                            PageLoaded = (await ExecuteScriptAsync("document.getElementById('addcall') != null") == "true");
-                        }
-                    }
-
-                    await Task.Delay(CpuSleep);
-                    if (stopwatch.ElapsedMilliseconds >= PageLoadTimeOut)
-                    {
-                        break;
-                    }
-                }
-
-                ret = PageLoaded;
-            }
-
-            return ret;
-        }
-
-
-        // Edit QSO
-        public async Task<bool> StartEditQSO(int position)
-        {
-            bool ret = false;
-
-            if (await OpenQSORecord(position))
-            {
-                bool PageLoaded = false;
-
-                Stopwatch stopwatch = new Stopwatch();
-                stopwatch.Start();
-                flagDocumentCompleted = false;
-                await ExecuteScriptAsync("lb_go('edit','')");
-
-                while (!PageLoaded)
-                {
-                    if (flagDocumentCompleted)
-                    {
-                        if ((wb2.CoreWebView2.DocumentTitle == "Logbook by QRZ.COM"))
-                        {
-                            PageLoaded = await ExecuteScriptAsync("document.getElementById('start_date') != null") == "true";
-                        }
-                    }
-
-                    await Task.Delay(CpuSleep);
-                    if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
-                    {
-                        break;
-                    }
-                }
-
-                ret = PageLoaded;
-            }
-
-            return ret;
-        }
-
-
-        public async Task<bool> OpenQSORecord(int position) 
-        {
-            bool ret = false;
-            int qsoForPage = await GetEntriesForPage();
-            if (qsoForPage > 0)
-            {
-                float fQsoForPage = (float)qsoForPage;
-                float fPosition = (float)position;
-                bool HaveRestStart = ((fPosition % fQsoForPage) != 0);
-                int page = (position / qsoForPage) + (HaveRestStart ? 1 : 0);
-
-                if (await GotoLoogbookPage(page) == page)
-                {
-                    HtmlElement table = await GetHTMLElementWait("lblistrs", "lbtab");
-                    HtmlElement thead = QRZHelper.GetElementByTagAndClassName(table, "thead", "");
-                    if (thead.TagName != null)
-                    {
-                        HtmlElementCollection colnames = thead.GetElementsByTagName("TH");
-                        if (colnames != null)
-                        {
-                            HtmlElement tbody = QRZHelper.GetElementByTagAndClassName(table, "tbody", "");
-                            if (tbody != null)
-                            {
-                                HtmlElementCollection rows = tbody.GetElementsByTagName("TR");
-                                foreach (HtmlElement row in rows)
-                                {
-
-                                    int curPos = QRZHelper.GetIntByStringOrNegative(row.GetAttribute("data-pos"));
-                                    if (curPos >= 0)
-                                        curPos++;
-
-                                    if (curPos == position)
-                                    {
-                                        string pos = row.GetAttribute("data-pos");
-                                        string num = row.GetAttribute("data-rownum");
-                                        string bid = row.GetAttribute("data-bookid");
-
-                                        /*
-                                        HtmlElement lbmenu = wb.Document.GetElementById("lbmenu");
-                                        lbmenu.GetElementsByTagName("input").GetElementsByName("bookid")[0].SetAttribute("value", bid);
-                                        lbmenu.GetElementsByTagName("input").GetElementsByName("logpos")[0].SetAttribute("value", pos);
-                                        */
-                                        await ExecuteScriptAsync($"document.getElementById('lbmenu').getElementsByTagName('input').namedItem('bookid').value = '{bid}';");
-                                        await ExecuteScriptAsync($"document.getElementById('lbmenu').getElementsByTagName('input').namedItem('logpos').value = '{pos}';");
-
-                                        bool PageLoaded = false;
-
-                                        Stopwatch stopwatch = new Stopwatch();
-                                        stopwatch.Start();
-                                        flagDocumentCompleted = false;
-                                        
-                                        await ExecuteScriptAsync("document.getElementById('lbmenu').submit()");
-
-                                        while (!PageLoaded)
-                                        {
-                                            if (flagDocumentCompleted)
-                                            {
-                                                if ((wb2.CoreWebView2.DocumentTitle == "Logbook by QRZ.COM"))
-                                                {
-                                                    PageLoaded = (await ExecuteScriptAsync("document.getElementById('lb_body') != null && document.getElementById('lb_body').innerText.includes('QSO Detail');") == "true");
-                                                }
-
-                                            }
-
-                                            await Task.Delay(CpuSleep);
-                                            if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
-                                            {
-                                                break;
-                                            }
-                                        }
-
-                                        ret = PageLoaded;
-                                    }
-                                    if (curPos >= position)
-                                        break;
-                                }
-
-                            }
-                        }
-                    }
-                    
-                }
-            }
-            return ret;
-        }
-
-        // Insert Data il QSO ADD or EDIT fields
-        private async Task<bool> SetQSOData(string qrzToCall, string freq, string mode, string date, string time, string comment)
-        {
-            bool ret = false;
-            bool bOK = false;
-            string bandFound = string.Empty;
-
-            // Check the Date Format
-            bOK = (DateTime.TryParse(date, out DateTime dummyDate));
-
-            // Set the Date in to input data
-            if (bOK)
-            {
-                bOK = (await ExecuteScriptAsync("document.getElementById('start_date') != null") == "true")
-                    &&
-                    (await ExecuteScriptAsync("document.getElementById('end_date') != null") == "true");
-
-
-                if (bOK)
-                {
-                    await SetElementValue("start_date", date);
-                    await SetElementValue("end_date", date);
-                    bOK = true;
-                }
-
-                // Check the Time Format
-                if (bOK)
-                    bOK = TimeSpan.TryParse(time, out TimeSpan dummyTime);
-
-                // Set the Time in to input data
-                if (bOK)
-                {
-                    bOK = (await ExecuteScriptAsync("document.getElementById('start_time') != null") == "true")
-                    &&
-                    (await ExecuteScriptAsync("document.getElementById('end_time') != null") == "true");
-
-                    if (bOK)
-                    {
-                        await SetElementValue("start_time", time);
-                        await SetElementValue("end_time", time);
-                        bOK = true;
-                    }
-                }
-
-                // Check The Freq
-                if (bOK)
-                {
-                    bOK = false;
-                    if (double.TryParse(freq.Replace(".", ","), out double dFreq))
-                    {
-                        bandFound = bandFrequenciesRange.Where(x => dFreq >= x.Min && dFreq <= x.Max).FirstOrDefault()?.Band;
-                    }
-                    bOK = (!string.IsNullOrEmpty(bandFound));
-                }
-
-                //Set the Freq
-                if (bOK)
-                {
-                    bOK = await ExecuteScriptAsync("document.getElementById('freq2') != null") == "true";
-                    if (bOK)
-                    {
-                        await SetElementValue("freq2", freq);
-                        await ExecuteScriptAsync($"setFreq('2, '0')");
-
-                        bOK = false;
-                        if (await ExecuteScriptAsync("document.getElementById('band2') != null") == "true")
-                        {
-                            await SetElementValue("band2", bandFound);
-                            bOK = true;
-                        }
-
-                        if (bOK)
-                        {
-                            await SetElementValue("freq1", freq);
-                            await ExecuteScriptAsync($"setFreq('1, '0')");
-
-                            bOK = false;
-                            if (await ExecuteScriptAsync("document.getElementById('band1') != null") == "true")
-                            {
-                                await SetElementValue("band1", bandFound);
-                                bOK = true;
-                            }
-                        }
-                    }
-                }
-
-                //Chek The Mode
-                if (bOK)
-                {
-                    bOK = false;
-                    if (!string.IsNullOrEmpty(mode))
-                    {
-                        bOK = modes.Where(x => x == mode).Any();
-                    }
-                }
-
-                //Set the Mode
-                if (bOK)
-                {
-                    if (await ExecuteScriptAsync("document.getElementById('mode2') != null") == "true")
-                    {
-                        await SetElementValue("mode2", mode);
-                        await ExecuteScriptAsync($"setMode('1, '2')");
-
-                        bOK = true;
-                    }
-
-                    if (bOK)
-                    {
-                        if (await ExecuteScriptAsync("document.getElementById('mode1') != null") == "true")
-                        {
-                            await SetElementValue("mode1", mode);
-                            await ExecuteScriptAsync($"setMode('1, '1')");
-
-                            bOK = true;
-                        }
-
-                    }
-
-                }
-
-                // Set RTS SENT
-                if (bOK)
-                {
-                    bOK = await ExecuteScriptAsync("document.getElementById('rst_sent') != null") == "true";
-                    if (bOK)
-                    {
-                        await SetElementValue("rst_sent", "59");
-                        bOK = true;
-                    }
-                }
-
-                // Set RTS RCVD
-                if (bOK)
-                {
-                    bOK = await ExecuteScriptAsync("document.getElementById('rst_rcvd') != null") == "true";
-                    if (bOK)
-                    {
-                        await SetElementValue("rst_rcvd", "59");
-                        bOK = true;
-                    }
-                }
-
-                //Set the comment
-                if (bOK)
-                {
-                    if (!string.IsNullOrEmpty(comment))
-                    {
-                        // TODO: La parte dei commenti non è visibile
-                        bOK = await ExecuteScriptAsync("document.getElementById('comments1') != null") == "true";
-                        if (bOK)
-                        {
-                            await SetElementValue("comments1", "comment");
-                            bOK = true;
-                        }
-                        bOK = true; // TODO: La parte dei commenti non è visibile
-                    }
-                }
-            }
-            if (bOK)
-                return true;
-
-            return ret;
-        }
-
-        public async Task<LookupEntry> ExecQuery(string QRZsearch)
-        {
-            LookupEntry ret = new LookupEntry();
-            bool queryTimeOut = false;
-            long timeout = PageLoadTimeOut;
-            bool resultPageLoaded = false;
-            bool resultFound;
-
-            if (await GotoLookup())
-            {
-                if (wb2.CoreWebView2.DocumentTitle != "The Home for Amateur Radio by QRZ Ham Radio")
-                {
-                    Debug.Print($"before start lookup you are in: {wb2.CoreWebView2.Source}");
-
-                    await ExecuteScriptAsync($"document.querySelector('#topcall > div.magic > div.tqueryWrapper > input.tquery').value = '{QRZsearch.ToUpper()}'");
-
-                    Stopwatch stopwatch = new Stopwatch();
-                    stopwatch.Start();
-                    //flagDocumentCompleted = false;
-                    await ExecuteScriptAsync("document.getElementById('tsubmit').click()");
-                    while (!resultPageLoaded)
-                    {
-                        if (true)
-                        {
-                            bool f = await ExecuteScriptAsync("document.getElementById('qrzcenter') != null") == "true";
-                            if (f)
-                            {
-                                resultPageLoaded = await ExecuteScriptAsync($"document.getElementById('csdata')") != "null";
-                                if (!resultPageLoaded)
-                                {
-                                    resultPageLoaded = await ExecuteScriptAsync($"document.getElementById('qrzcenter').outerText.includes('no results for {QRZsearch.ToUpper()}') > 0") == "true";
-                                }
-                            }
-                        }
-
-                        await Task.Delay(CpuSleep);
-                        if (stopwatch.ElapsedMilliseconds >= timeout)
-                        {
-                            queryTimeOut = true;
-                            break;
-                        }
-                    }
-
-
-                    Debug.Print($"after lookup you are in: {wb2.CoreWebView2.Source}");
-                    if (!queryTimeOut)
-                    {
-                        LookupEntry entry = new LookupEntry();
-                        resultFound = await ExecuteScriptAsync("document.getElementById('csdata') != null") == "true";
-                        if (resultFound)
-                        {
-                            await ExecuteScriptAsync("showqem()");
-                            HtmlElement csdata = await GetHTMLElementWait("calldata", "csdata");
-                            if (csdata != null)
-                            {
-                                entry.QRZ = csdata.Children[0].OuterText.Trim();
-                                entry.DXCC = csdata.Children[1].OuterHtml.Substring(csdata.Children[1].OuterHtml.IndexOf("?dxcc=") + 6, 3);
-                                entry.DXCC = Regex.Match(entry.DXCC, @"\d+").Value;
-                                entry.Country = csdata.Children[1].OuterText.Trim();
-                                if (csdata.Children[3].Children.Count > 0)
-                                    entry.Name = csdata.Children[3].Children[0].OuterText?.Trim();
-                                if (csdata.Children[3].OuterText != null)
-                                {
-                                    string[] rawArray = csdata.Children[3].OuterText.Split(Environment.NewLine.ToCharArray(), StringSplitOptions.RemoveEmptyEntries);
-                                    entry.Address1 = rawArray.Length > 1 ? rawArray[1] : String.Empty;
-                                    entry.Address2 = rawArray.Length > 2 ? rawArray[2] : String.Empty;
-                                    entry.Address3 = rawArray.Length > 3 ? rawArray[3] : String.Empty;
-                                }
-                                entry.Email = (csdata.Children[5].OuterText != null) ? csdata.Children[5].OuterText.Replace("Email: ", "") : string.Empty;
-
-                                HtmlElement detbox = await GetHTMLElementWait("t_detail", "dt");
-                                if (detbox != null)
-                                {
-                                    HtmlElementCollection rows = detbox.GetElementsByTagName("TR");
-
-                                    foreach (HtmlElement row in rows)
-                                    {
-                                        HtmlElementCollection cols = row.GetElementsByTagName("TD");
-                                        foreach (HtmlElement cell in cols)
-                                        {
-                                            switch (cell.InnerText)
-                                            {
-                                                case "Grid Square":
-                                                    entry.GridSquare = cell.NextSibling.InnerText;
-                                                    break;
-                                                case "Lookups":
-                                                    entry.Lookups = cell.NextSibling.InnerText;
-                                                    break;
-                                                case "Distance":
-                                                    entry.Distance = cell.NextSibling.InnerText;
-                                                    break;
-                                                case "US State":
-                                                    entry.UsState = cell.NextSibling.InnerText;
-                                                    break;
-                                                case "US County":
-                                                    entry.UsCounty = cell.NextSibling.InnerText;
-                                                    break;
-                                            }
-                                        }
-
-                                    }
-                                }
-                            }
-                        }
-                        else
-                        {
-                            entry.QRZ = QRZsearch;
-                            entry.Name = "No result found!";
-                        }
-                        ret = entry;
-                    }
-                }
-                else
-                {
-                    LookupEntry entry = new LookupEntry
-                    {
-                        QRZ = QRZsearch,
-                        Name = "Too many lookups"
-                    };
-                    ret = entry;
-                }
-            }
-            return ret;
-        }
-
-        public async Task<string> CheckWorkedRaw(string QRZsearch)
-        {
-            string ret = string.Empty;
-            if (await StartAddCall(QRZsearch))
-            {
-                HtmlElement lblist = await GetHTMLElementWait("lbform", "lblist");
-                if (lblist != null)
-                {
-                    HtmlElement seenBeforeTable = QRZHelper.GetElementByTagAndClassName(lblist, "table", "styledTable seenBeforeTable");
-                    if (seenBeforeTable != null)
-                    {
-                        HtmlElementCollection rows = seenBeforeTable.GetElementsByTagName("TR");
-
-                        foreach (HtmlElement row in rows)
-                        {
-                            HtmlElementCollection cols = row.GetElementsByTagName("TD");
-                            foreach (HtmlElement cell in cols)
-                            {
-                                ret += cell.InnerText + "\t";
-                            }
-                            ret += "\r\n";
-                        }
-                    }
-                }
-            }
-            return ret;
-        }
-
-        public async Task<int> GetEntriesForPage()
-        {
-            int ret = -1;
-            if (await GotoLogbook())
-            {
-                string s = await GetValueElementAsync("dispOpt_rpp");
-                    ret = QRZHelper.GetIntByString(s);
-            }
-            return ret;
-        }
-
-        public async Task<int> SetEntriesForPage(int entries) //, out string msg)
-        {
-            int ret = -1;
-            string defaultMsg = "Invalid parameter! Enter one of the following values: 5, 10, 15, 20, 25, 50, 100, 200";
-            outMsg = string.Empty;
-            if (entries != 5
-                && entries != 10
-                && entries != 15
-                && entries != 20
-                && entries != 25
-                && entries != 50
-                && entries != 100
-                && entries != 200
-                )
-                outMsg = defaultMsg;
-            else
-            {
-                if (await GotoLogbook())
-                {
-                    int currValue;
-
-                    string rowsForPage = await GetValueElementAsync("dispOpt_rpp");
-                    if (!string.IsNullOrEmpty(rowsForPage))
-                    {
-                        currValue = int.Parse(rowsForPage);
-                        if (currValue > 0 && currValue != entries)
-                        {
-                            Stopwatch stopwatch = new Stopwatch();
-                            stopwatch.Start();
-
-                            bool PageLoaded = false;
-
-                            await SetElementValue("dispOpt_rpp", entries.ToString());
-                            await ExecuteScriptAsync("updateDisplayOptions('rpp')");
-
-                            while (!PageLoaded)
-                            {
-                                if (stopwatch.ElapsedMilliseconds > 1000)
-                                {
-                                    if (await GetScriptResult("document.getElementById('filterLoading')") != "null")
-                                    {
-                                        await EvalJS("document.getElementById('filterLoading').style");
-                                        string style = await GetScriptResult("document.getElementById('filterLoading').getAttribute('style')");
-                                        if (style.Contains("display:none"))
-                                        {
-                                            PageLoaded = true;
-                                        }
-                                    }
-                                    await Task.Delay(CpuSleep);
-                                    if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
-                                        break;
-                                }
-                            }
-
-                            if (PageLoaded)
-                            {
-                                if (await GotoLogbook(true))
-                                    ret = await GetEntriesForPage();
-                            }
-                        }
-                        else if (currValue > 0 && currValue == entries)
-                        {
-                            ret = entries;
-                        }
-                    }
-                }
-            }
-            return ret;
-        }
-
-        public async Task<int> GetQSOsCount(bool ForceReload = false)
-        {
-            int ret = -1;
-
-            if (await GotoLogbook(ForceReload))
-            {
-                HtmlElement el = await GetHTMLElementWait("lb_body", "lbmenu");
-                if (el != null)
-                {
-                    HtmlElement el1 = QRZHelper.GetElementByTagAndClassName(el, "SPAN", " hide-lt-800 qcnt");
-                    if (el1 != null)
-                    {
-                        HtmlElement el2 = QRZHelper.GetElementByTagAndClassName(el1, "SPAN", "mitm");
-                        if (int.TryParse(el2.InnerText, out int tmp))
-                            ret = tmp;
-                    }
-                }
-            }
-            return ret;
-        }
-
-        public async Task<List<KeyValuePair<string, bool>>> GetLocatorWorked() //TODO: da completare
-        {
-            List<KeyValuePair<string, bool>> ret = new List<KeyValuePair<string, bool>>();
-            /*
-            if (await GotoLogbook())
-            {
-                bool stepDone = false;
-                bool waitDone = false;
-                Stopwatch stopwatch;
-
-                Debug.WriteLine("Load Award section...");
-
-                await ExecuteScriptAsync("lb_go('awards', '')");
-
-                //wait for new step -----------
-                stopwatch = new Stopwatch();
-                stopwatch.Start();
-
-                while (!waitDone)
-                {
-                    stepDone = waitDone = (await ExecuteScriptAsync("document.getElementById('container') != null") == "true");
-
-                    await Task.Delay(CpuSleep);
-
-                        if (stopwatch.ElapsedMilliseconds >= PageLoadTimeOut)
-                        {
-                            break;
-                        }
-                }
-
-                if (!stepDone)
-                {
-                    Debug.WriteLine("Unable load Award section...");
-                    return ret;
-                }
-
-                stepDone = false;
-                waitDone = false;
-                stopwatch = null;
-
-                Debug.WriteLine("Expand Award section...");
-                //HtmlElementCollection elH3s = wb.Document.GetElementsByTagName("h3");
-
-                //foreach (HtmlElement elH3 in elH3s)
-                //{
-                //    if (elH3.InnerText.Contains("Grid Squared Award"))
-                //    {
-                //        elH3.InvokeMember("click");
-                //    }
-                //}
-
-                ////wait for new step -----------
-                //stopwatch = new Stopwatch();
-                //stopwatch.Start();
-
-                //while (!waitDone)
-                //{
-                //    HtmlElement container = wb.Document.GetElementById("lbtab");
-                //    stepDone = waitDone = (container != null);
-
-                //    Application.DoEvents();
-                //    Thread.Sleep(CpuSleep);
-                //    if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
-                //    {
-                //        break;
-                //    }
-                //}
-
-                //if (!stepDone)
-                //{
-                //    Debug.WriteLine("Unable expand Award section.");
-                //    return ret;
-                //}
-
-                //Debug.WriteLine("Get W100 Award table...");
-
-                //HtmlElement el1 = wb.Document.GetElementById("content-inside-4");
-                //if (el1 != null)
-                //{
-                //    HtmlElement tblW100 = QRZHelper.GetElementByTagAndClassName(el1, "table", "w100");
-                //    if (tblW100 != null)
-                //    {
-                //        HtmlElementCollection els = tblW100.GetElementsByTagName("tr");
-
-                //        foreach (HtmlElement el in els)
-                //        {
-                //            if (!string.IsNullOrEmpty(el.Id))
-                //            {
-                //                if (el.Id.Contains("mainRow"))
-                //                {
-                //                    string locator = QRZHelper.GetElementByTagAndClassName(el, "span", "ptr lent").InnerText;
-                //                    bool confirmed = (QRZHelper.GetElementByTagAndClassName(el, "td", "lstat").InnerText == "Confirmed");
-                //                    ret.Add(new KeyValuePair<string, bool>(locator, confirmed));
-                //                }
-                //            }
-                //        }
-                //    }
-                //    else
-                //    {
-                //        Debug.WriteLine("Unable to locate W100 Award table.");
-                //        return ret;
-                //    }
-                //}
-
-            }
-            */
-            return ret;
-        }
-
-        public async Task<int> GetLogbookPages(bool ForceReload = false)
-        {
-            int ret = -1;
-
-            if (await GotoLogbook(ForceReload))
-            {
-                HtmlElement el = await GetHTMLElementWait("lbmenu", "listnav");
-                if (el != null)
-                {
-                    HtmlElement el1 = QRZHelper.GetElementByTagAndClassName(el, "SPAN", "input-group-text  hide-lt-1100");
-                    if (el1 != null)
-                    {
-                        string pages = el1.InnerText?.Replace("of ", "");
-                        if (int.TryParse(pages, out int tmp))
-                            ret = tmp;
-                    }
-                }
-            }
-
-            return ret;
-        }
-
-        public async Task<int> GetCurrentLogbookPage()
-        {
-            int ret = -1;
-            if (await GotoLogbook())
-            {
-                if (wb2.CoreWebView2.DocumentTitle == "Logbook by QRZ.COM")
-                {
-                    await EvalJS("document.getElementById('ipage').value");
-
-                    if (await GetScriptResult("document.getElementById('button-addon4') != null") == "true")
-                    {
-                        if (await GetScriptResult("document.getElementById('ipage') != null") == "true")
-                        {
-                            if (int.TryParse(await GetElementValueAsync("ipage"), out int tmp))
-                                ret = tmp;
-                        }
-                    }
-                }
-            }
-            return ret;
-        }
-
-
-        public async Task<int> GotoLoogbookPage(int page)
-        {
-            int ret = -1;
-
-            if (await GotoLogbook())
-            {
-                if (await GetScriptResult("document.getElementById('ipage')") != "null")
-                {
-                    if (await GetElementValueAsync("ipage") != page.ToString())
-                    {
-                        await SetElementValueAsync("ipage", page.ToString());
-
-                        Stopwatch stopwatch = new Stopwatch();
-                        stopwatch.Start();
-
-                        bool PageLoaded = false;
-                        await ExecuteScriptAsync("goto('page')");
-                        while (!PageLoaded)
-                        {
-                            if (stopwatch.ElapsedMilliseconds > 1000)
-                            {
-                                if (await GetScriptResult("document.getElementById('filterLoading')") != "null")
-                                {
-                                    await EvalJS("document.getElementById('filterLoading').style");
-                                    string style = await GetScriptResult("document.getElementById('filterLoading').getAttribute('style')");
-                                    if (style.Contains("display:none"))
-                                    {
-                                        PageLoaded = true;
-                                    }
-                                }
-                                await Task.Delay(CpuSleep);
-                                if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
-                                    return -1;
-                            }
-                        }
-                        ret = await GetCurrentLogbookPage();
-                    }
-                    else
-                        ret = page;
-
-                }
-            }
-            return ret;
-        }
-
-        private void Wbro_DocumentCompleted(object sender, WebBrowserDocumentCompletedEventArgs e)
-        {
-            wbroDocumentCompleted = true;
-        }
-
-
-        public async Task<string> GetLogbookPageContentRaw(int page)
-        {
-            string ret = string.Empty;
-
-            if (await GotoLoogbookPage(page) == page)
-            {
-                HtmlElement table = await GetHTMLElementWait("lblistrs", "lbtab");
-                HtmlElementCollection rows = table.GetElementsByTagName("TR");
-
-                foreach (HtmlElement row in rows)
-                {
-                    HtmlElementCollection cols = row.GetElementsByTagName("TD");
-                    int colCount = 0;
-                    bool validRow = false;
-                    foreach (HtmlElement cell in cols)
-                    {
-                        colCount++;
-                        if (colCount == 1)
-                        {
-                            if (cell.InnerText != null)
-                            {
-                                validRow = int.TryParse(cell.InnerText.Trim(), out int tmp);
-                            }
-                        }
-                        if (validRow)
-                            ret += cell.InnerText + "\t";
-                    }
-                    if (validRow)
-                        ret += "\r\n";
-                }
-
-            }
-            return ret;
-        }
-
-        private async Task<string> GetHTMLTextElement(string id)
-        {
-            string s = await wb2.CoreWebView2.ExecuteScriptAsync($"document.getElementById('{id}').innerHTML");
-            return s;
-        }
-
-        private async Task<HtmlElement> GetHTMLElementWait(string parent, string id)
-        {
-            HtmlElement htmlElement = null;
-            Stopwatch stopwatch = new Stopwatch();
-            stopwatch.Start();
-
-            while (htmlElement == null)
-            {
-                if (stopwatch.ElapsedMilliseconds > 1000)
-                {
-                    htmlElement = await GetHTMLElementAsync(parent, id);
-                }
-
-                await Task.Delay(CpuSleep);
-                if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
-                    break;
-            }
-            return await GetHTMLElementAsync(parent, id);
-        }
-
-        private async Task<HtmlElement> GetHTMLElementAsync(string parent, string id)
-        {
-            bool bFound = true;
-
-            wb = new WebBrowser();
-            wbroDocumentCompleted = false;
-            wb.ScriptErrorsSuppressed = true;
-            wb.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(Wbro_DocumentCompleted);
-            string g = await GetHTMLTextElement(parent);
-            g = Regex.Unescape(g);
-            g = g.Remove(0, 1);
-            g = g.Remove(g.Length - 1, 1);
-
-            wb.DocumentText = g;
-
-            Stopwatch stopwatch = new Stopwatch();
-            stopwatch.Start();
-
-            while (!wbroDocumentCompleted)
-            {
-                await Task.Delay(CpuSleep);
-                if (stopwatch.ElapsedMilliseconds >= 1000)
-                {
-                    bFound = false;
-                    break;
-                }
-            }
-
-            wb.DocumentCompleted -= new WebBrowserDocumentCompletedEventHandler(Wbro_DocumentCompleted);
-            HtmlElement ret = null;
-            if (bFound)
-            {
-                ret = wb.Document.GetElementById(id);
-            }
-
-            wb = null;
-
-            return ret;
-        }
-
-        public async Task<List<LogbookEntry>> GetLogbookPageContent(int page)
-        {
-
-            List<LogbookEntry> ret = new List<LogbookEntry>();
-            if (await GotoLoogbookPage(page) == page)
-            {
-                HtmlElement table = await GetHTMLElementWait("lblistrs", "lbtab");
-                HtmlElement thead = QRZHelper.GetElementByTagAndClassName(table, "thead", "");
-                if (thead.TagName != null)
-                {
-                    HtmlElementCollection colnames = thead.GetElementsByTagName("TH");
-                    if (colnames != null)
-                    {
-                        HtmlElement tbody = QRZHelper.GetElementByTagAndClassName(table, "tbody", "");
-                        if (tbody != null)
-                        {
-                            HtmlElementCollection rows = tbody.GetElementsByTagName("TR");
-                            foreach (HtmlElement row in rows)
-                            {
-                                LogbookEntry lbrow = new LogbookEntry();
-                                HtmlElementCollection cols = row.GetElementsByTagName("TD");
-                                lbrow.LoTWSent = row.GetAttribute("className").Contains("lotw_sent");
-                                int currCol = 0;
-                                string tmp;
-                                string DateTimeStr = string.Empty;
-                                foreach (HtmlElement cell in cols)
-                                {
-                                    string cellText = cell.InnerText ?? String.Empty;
-
-                                    switch (colnames[currCol].Id)
-                                    {
-                                        case "th_lnum":
-                                            lbrow.position = QRZHelper.GetIntByString(cellText);
-                                            break;
-                                        case "th_date":
-                                            DateTimeStr = cellText;
-                                            break;
-                                        case "th_time":
-                                            DateTimeStr += $" {cellText}";
-                                            lbrow.QSODateTime = QRZHelper.GetDateTimeByString(DateTimeStr);
-                                            break;
-                                        case "th_call2":
-                                            lbrow.Call = cellText.Replace("Ø", "0");
-                                            break;
-                                        case "th_band1":
-                                            lbrow.Band = cellText;
-                                            break;
-                                        case "th_freq2":
-                                            lbrow.Frequency = cellText;
-                                            break;
-                                        case "th_mode2":
-                                            lbrow.Mode = cellText;
-                                            break;
-                                        case "th_grid2":
-                                            lbrow.GridLocator = cellText;
-                                            break;
-                                        case "th_country2":
-                                            lbrow.Country = cellText;
-                                            break;
-                                        case "th_name2":
-                                            lbrow.OperatorName = cellText;
-                                            break;
-                                        case "th_comments":
-                                            lbrow.Comments = cellText;
-                                            break;
-                                        case "th_status":
-                                            lbrow.Confirmed = cellText.StartsWith("Confirmed");
-                                            break;
-                                    }
-                                    currCol++;
-                                }
-                                if (lbrow.position > 0)
-                                {
-                                    lbrow.DXCC = string.Empty;
-                                    if (!string.IsNullOrEmpty(lbrow.Country))
-                                        lbrow.DXCC = QRZHelper.GetDXCCByCountry(lbrow.Country);
-                                    ret.Add(lbrow);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            return ret;
-        }
-
-
-        public async Task<List<LogbookEntry>> GetLogbookEntriesByRange(int start, int end)
-        {
-            List<LogbookEntry> ret = new List<LogbookEntry>();
-            if (start <= end)
-            {
-                int qsoForPage = await GetEntriesForPage();
-                if (qsoForPage > 0)
-                {
-                    float fStart = (float)start;
-                    float fEnd = (float)end;
-                    float fQsoForPage = (float)qsoForPage;
-
-                    bool HaveRestStart = ((fStart % fQsoForPage) != 0);
-                    bool HaveRestEnd = ((fEnd % fQsoForPage) != 0);
-
-                    int pageStart = (start / qsoForPage) + (HaveRestStart ? 1 : 0);
-                    int pageEnd = (end / qsoForPage) + (HaveRestEnd ? 1 : 0);
-                    if (pageStart > 0 && pageEnd > 0 && pageStart <= pageEnd)
-                    {
-                        for (int i = pageStart; i <= pageEnd; i++)
-                        {
-                            if (await GotoLoogbookPage(i) == i)
-                            {
-                                HtmlElement table = await GetHTMLElementWait("lblistrs", "lbtab");
-                                HtmlElement thead = QRZHelper.GetElementByTagAndClassName(table, "thead", "");
-                                if (thead.TagName != null)
-                                {
-                                    HtmlElementCollection colnames = thead.GetElementsByTagName("TH");
-                                    if (colnames != null)
-                                    {
-                                        HtmlElement tbody = QRZHelper.GetElementByTagAndClassName(table, "tbody", "");
-                                        if (tbody != null)
-                                        {
-                                            HtmlElementCollection rows = tbody.GetElementsByTagName("TR");
-                                            foreach (HtmlElement row in rows)
-                                            {
-
-                                                int curPos = QRZHelper.GetIntByStringOrNegative(row.GetAttribute("data-pos"));
-                                                if (curPos >= 0)
-                                                    curPos++;
-
-                                                if (start <= curPos && curPos <= end)
-                                                {
-
-                                                    LogbookEntry lbrow = new LogbookEntry();
-                                                    HtmlElementCollection cols = row.GetElementsByTagName("TD");
-                                                    int currCol = 0;
-                                                    //int curPos = -1;
-                                                    string tmp = string.Empty;
-                                                    string DateTimeStr = string.Empty;
-                                                    lbrow.LoTWSent = row.GetAttribute("className").Contains("lotw_sent");
-                                                    foreach (HtmlElement cell in cols)
-                                                    {
-                                                        string cellText = cell.InnerText ?? String.Empty;
-
-                                                        switch (colnames[currCol].Id)
-                                                        {
-                                                            case "th_lnum":
-                                                                //curPos = QRZHelper.GetIntByString(cell.InnerText);
-                                                                //if (!(start <= curPos && curPos <= end))
-                                                                //    break;
-                                                                lbrow.position = curPos;
-                                                                break;
-                                                            case "th_date":
-                                                                DateTimeStr = cellText;
-                                                                break;
-                                                            case "th_time":
-                                                                DateTimeStr += $" {cellText}";
-                                                                lbrow.QSODateTime = QRZHelper.GetDateTimeByString(DateTimeStr);
-                                                                break;
-                                                            case "th_call2":
-                                                                lbrow.Call = cellText.Replace("Ø", "0");
-                                                                break;
-                                                            case "th_band1":
-                                                                lbrow.Band = cellText;
-                                                                break;
-                                                            case "th_freq2":
-                                                                lbrow.Frequency = cellText;
-                                                                break;
-                                                            case "th_mode2":
-                                                                lbrow.Mode = cellText;
-                                                                break;
-                                                            case "th_grid2":
-                                                                lbrow.GridLocator = cellText;
-                                                                break;
-                                                            case "th_country2":
-                                                                lbrow.Country = cellText;
-                                                                break;
-                                                            case "th_name2":
-                                                                lbrow.OperatorName = cellText;
-                                                                break;
-                                                            case "th_comments":
-                                                                lbrow.Comments = cellText;
-                                                                break;
-                                                            case "th_status":
-                                                                lbrow.Confirmed = cellText.StartsWith("Confirmed");
-                                                                break;
-                                                        }
-                                                        if (curPos > -1 && (!(start <= curPos && curPos <= end)))
-                                                            break;
-                                                        currCol++;
-                                                    }
-                                                    if (lbrow.position > 0)
-                                                    {
-                                                        lbrow.DXCC = string.Empty;
-                                                        if (!string.IsNullOrEmpty(lbrow.Country))
-                                                            lbrow.DXCC = QRZHelper.GetDXCCByCountry(lbrow.Country);
-                                                        ret.Add(lbrow);
-                                                    }
-                                                }
-                                                if (curPos > end)
-                                                    break;
-                                            }
-
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            return ret;
-        }
-
-        public async Task<int> SetLogbookDateOrder(int dateOrder)
-        {
-            int ret = -1;
-            string contains;
-            string mustContains;
-
-
-            if (await GotoLogbook())
-            {
-                HtmlElement th_date = await GetHTMLElementWait("lblistrs", "th_date");
-                if (th_date != null)
-                {
-                    if (dateOrder == 0)
-                    {
-                        contains = "sortAsc";
-                        mustContains = "sortDesc";
-                    }
-                    else if (dateOrder == 1)
-                    {
-                        contains = "sortDesc";
-                        mustContains = "sortAsc";
-                    }
-                    else
-                        return -1;
-
-                    if (await ExecuteScriptAsync($"document.getElementById('th_date').className.includes('{contains}');") == "true")
-                    {
-                        bool orderSetOk = false;
-                        Stopwatch stopwatch = new Stopwatch();
-                        stopwatch.Start();
-
-                        await ExecuteScriptAsync("document.getElementById('th_date').click()");
-
-                        while (!orderSetOk)
-                        {
-                            if (stopwatch.ElapsedMilliseconds > 1000)
-                            {
-                                if (await ExecuteScriptAsync($"document.getElementById('th_date').className.includes('{mustContains}');") == "true")
-                                {
-                                    ret = dateOrder;
-                                    orderSetOk = true;
-                                }
-
-                            }
-
-                            await Task.Delay(CpuSleep);
-                            if (stopwatch.ElapsedMilliseconds >= _pageLoadTimeOut)
-                                return -1;
-
-                        }
-                    }
-                    else if (th_date.GetAttribute("className").Contains(mustContains))
-                    {
-                        ret = dateOrder;
-                    }
-                }
-            }
-
-            return ret;
+            ErrorMessage = message;
+            return false;
         }
 
         #endregion
 
-        private async Task<string> GetScriptResult(string script)
+        #region Diagnostics
+
+        public async Task<IReadOnlyList<string>> DescribeFormFieldsAsync()
         {
-            string t = await wb2.CoreWebView2.ExecuteScriptAsync(script);
-            return t.Replace("\"", "");
+            List<string>? fields = await Browser.EvalAsync<List<string>>(DescribeFieldsScript);
+            return fields ?? new List<string>();
         }
 
-        //private async Task<string> EvalJSValueById(string id)
-        //{
-        //    return await EvalJS($"document.getElementById('{id}').value");
-        //}
+        public Task<string> DescribeCurrentPageAsync() => Task.FromResult($"Page: \"{Browser.Title}\" {Browser.Url}");
 
-        private async Task<string> EvalJS(string script)
-        {
-            string t = "";
-            if (wb2.CoreWebView2 != null)
-            {
-                try
-                {
-                    t = await wb2.CoreWebView2.ExecuteScriptAsync(script);
-                    t = t.Replace("\"", "");
-                    Console.WriteLine(t);
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"EvalJS Error: {ex.Message}");
-                }
-            }
-            return t;
-        }
+        #endregion
+
+        #region Extraction scripts
+
+        /// <summary>Reads #lbtab: header cell ids and, for each body row, its data-* attributes and cell texts.</summary>
+        private const string ExtractTableScript = @"(t => {
+  if (!t) return null;
+  const thead = t.querySelector('thead');
+  const tbody = t.querySelector('tbody');
+  if (!thead || !tbody) return null;
+  return {
+    headers: Array.from(thead.querySelectorAll('th')).map(th => th.id || ''),
+    rows: Array.from(tbody.querySelectorAll('tr')).map(tr => ({
+      pos: tr.getAttribute('data-pos') || '',
+      rowNum: tr.getAttribute('data-rownum') || '',
+      bookId: tr.getAttribute('data-bookid') || '',
+      className: tr.className || '',
+      cells: Array.from(tr.querySelectorAll('td')).map(td => td.innerText || '')
+    }))
+  };
+})(" + FindTableExpression + ")";
+
+        /// <summary>Reads the callsign box (#csdata children) and the detail table (label/value pairs).</summary>
+        private const string ExtractLookupScript = @"(() => {
+  const cs = document.querySelector('" + QrzSite.Lookup.CallData + @"') || document.getElementById('" + QrzSite.Lookup.CallDataId + @"');
+  if (!cs) return null;
+  const c = cs.children;
+  const text = e => e ? (e.innerText || '') : '';
+  const dt = document.querySelector('" + QrzSite.Lookup.Details + @"') || document.getElementById('" + QrzSite.Lookup.DetailsId + @"');
+  const details = [];
+  if (dt) {
+    for (const td of dt.querySelectorAll('td')) {
+      details.push([text(td), text(td.nextElementSibling)]);
+    }
+  }
+  return {
+    call: text(c[0]),
+    countryHtml: c[1] ? c[1].outerHTML : '',
+    country: text(c[1]),
+    name: c[3] && c[3].children.length > 0 ? text(c[3].children[0]) : '',
+    nameAndAddress: text(c[3]),
+    email: text(c[5]),
+    details: details
+  };
+})()";
+
+        /// <summary>One line per form field: tag, type, id, name, visibility, label and value (passwords hidden).</summary>
+        private const string DescribeFieldsScript = @"Array.from(document.querySelectorAll('input, select, textarea'))
+  .filter(e => (e.id || e.name) && !(e.id || '').startsWith('fc-') && !e.closest('.fc-consent-root, .fc-dialog-container'))
+  .map(e => {
+  const type = (e.type || '').toLowerCase();
+  const visible = !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length);
+  let value = type === 'password' ? '***' : String(e.value || '');
+  if (value.length > 40) value = value.substring(0, 37) + '...';
+  const label = e.labels && e.labels.length > 0 ? e.labels[0].innerText.trim() : '';
+  return e.tagName.toLowerCase() + (type ? '[' + type + ']' : '') +
+         ' id=' + (e.id || '-') + ' name=' + (e.name || '-') +
+         (visible ? '' : ' (hidden)') + (label ? ' label=""' + label + '""' : '') +
+         ' value=""' + value + '""';
+})";
+
+        #endregion
     }
 }

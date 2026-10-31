@@ -1,15 +1,17 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.30907.101
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QRZLibrary", "QRZLibrary\QRZLibrary.csproj", "{426E4FE5-A316-4538-93BD-B08687710CB9}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QRZConsole", "QRZConsole\QRZConsole.csproj", "{4CBD51F6-4144-4CEE-B7D2-922B33545F2E}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{A0E2CB07-2DF9-4ACD-B248-90CC27F77105}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "QRZNetwork", "QRZNetwork\QRZNetwork.csproj", "{3B6E2F0A-7C41-4D8E-9A52-6F1C0D2B8E47}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QRZTest", "QRZTest\QRZTest.csproj", "{87AB2794-85E7-4044-AB36-FC8A78E05483}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "QRZConsole.Core", "QRZConsole.Core\QRZConsole.Core.csproj", "{7D2C4B1E-5A3F-4E89-B6D0-2C9E1F4A8B53}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "QRZConsole.Tests", "QRZConsole.Tests\QRZConsole.Tests.csproj", "{5E8A1C3D-9B47-4F62-A0D8-3C71E2B94F06}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -25,10 +27,18 @@ Global
 		{4CBD51F6-4144-4CEE-B7D2-922B33545F2E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4CBD51F6-4144-4CEE-B7D2-922B33545F2E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4CBD51F6-4144-4CEE-B7D2-922B33545F2E}.Release|Any CPU.Build.0 = Release|Any CPU
-		{87AB2794-85E7-4044-AB36-FC8A78E05483}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{87AB2794-85E7-4044-AB36-FC8A78E05483}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{87AB2794-85E7-4044-AB36-FC8A78E05483}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{87AB2794-85E7-4044-AB36-FC8A78E05483}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3B6E2F0A-7C41-4D8E-9A52-6F1C0D2B8E47}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3B6E2F0A-7C41-4D8E-9A52-6F1C0D2B8E47}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3B6E2F0A-7C41-4D8E-9A52-6F1C0D2B8E47}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3B6E2F0A-7C41-4D8E-9A52-6F1C0D2B8E47}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7D2C4B1E-5A3F-4E89-B6D0-2C9E1F4A8B53}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7D2C4B1E-5A3F-4E89-B6D0-2C9E1F4A8B53}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7D2C4B1E-5A3F-4E89-B6D0-2C9E1F4A8B53}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7D2C4B1E-5A3F-4E89-B6D0-2C9E1F4A8B53}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5E8A1C3D-9B47-4F62-A0D8-3C71E2B94F06}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5E8A1C3D-9B47-4F62-A0D8-3C71E2B94F06}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5E8A1C3D-9B47-4F62-A0D8-3C71E2B94F06}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5E8A1C3D-9B47-4F62-A0D8-3C71E2B94F06}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

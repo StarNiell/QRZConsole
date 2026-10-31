@@ -1,4 +1,4 @@
-# About this repo
+﻿# About this repo
 
 ## General info
 This project is a "unofficial command-line interface" to the QRZ.COM website and require a personal account.
@@ -83,6 +83,8 @@ Cluster DX:
   Search Callsign on Cluster DX         ds [callsign]
   DXSpider command                      dc [DXSpider command: http://www.dxcluster.org/main/usermanual_en-12.html]
   Send Spot                             ss [call] [freq] [comment]
+  Set default spots for sb/sf           di [items]
+  Switch Cluster DX debug               cd
   Close Cluster DX                      cc
 General/Utility:
   Clear Monitor                         cl
@@ -91,17 +93,55 @@ General/Utility:
   Get Grid Locator List                 gl [loc] [c or u] (example: gl [*] [c] - gl [EN70]
   Set current Frequency                 ff [freq]
   Set current QRZ                       qq [qrz]
-  Switch View                           sw
+  Load QRZ.com home page                hm
+  Collapse / expand the ribbon          sw
   Switch Check Is Logged at startup     sc
   Switch screen (normal/fullsize)       fs
+  Console theme                         th [theme name | list] (no parameter: theme editor)
   Last data in memory                   ld
+  Switch browser (scraper) debug        bd
+  Show form fields of the current page  bf
   Command List                          cm
   Shortcut List                         sl
   Quit                                  qi
 -------------------------------------------------------------------------
 ```
 
+## Development
+Requires the .NET 10 SDK (Windows). Works with VS Code (C# extension) or the command line:
+```
+dotnet build QRZConsole.sln
+dotnet test QRZConsole.Tests
+```
+
+Projects:
+* **QRZConsole** - the console window (WinForms): output, keyboard, header buttons.
+* **QRZConsole.Core** - commands (one class each, in `Commands/Builtin`), session, settings, DX cluster, formatting, page parsing. No UI, unit-tested.
+* **QRZLibrary** - the QRZ.com scraper (WebView2). All page addresses, titles, ids and selectors are in `QrzSite.cs`.
+* **QRZNetwork** - `WinsockClient`, a VB6 Winsock-like TCP client (async, events on the UI thread).
+* **QRZConsole.Tests** - xUnit tests.
+
+When QRZ.com changes its pages: run `bd` to see every browser step and timeout, `bf` to list the fields of the page
+currently loaded, then adapt `QrzSite.cs` (selectors) or `QrzPageParser.cs` (how texts are read).
+
+To add a command: create a class deriving from `Command` in `QRZConsole.Core/Commands/Builtin` and register it in
+`CommandCatalog.CreateDefault()`; the command list (`cm`) is built from it.
+
 ## Change Log
+### 2026-10-31
+* v.2.0.0-beta
+* .NET 10, 64 bit, SDK-style projects (VS Code / dotnet CLI)
+* Winsock Orcas replaced by QRZNetwork.WinsockClient
+* Commands split into classes (QRZConsole.Core); DX cluster as a separate service
+* Scraper rewritten: no more Internet Explorer control, page data read as JSON, safe JavaScript values, clear timeouts
+* New commands: bd (browser debug), bf (form fields); hm, di, cd now listed
+* Password saved encrypted (Windows DPAPI)
+* Fix: aq/eq comment, frequencies with comma, hm/qp output
+* Unit tests (QRZConsole.Tests)
+* Command typed in line in the console (prompt "QRZ> "), colored output
+* Office-like ribbon (Home, Logbook, Cluster DX, View) replacing the hidden buttons; status bar
+* Configurable console theme (presets, colors, monospace font): View > Theme or "th"
+
 ### 2025-08-16
 * v.1.0.1.1-beta
 * Removed old MSBrowser (IE/EDGE)

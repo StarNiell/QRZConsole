@@ -1,0 +1,28 @@
+<Project>
+
+  <!-- Version of the whole solution: change it here only.
+       VersionPrefix + VersionSuffix = 2.0.0-beta (shown in the window title);
+       AssemblyVersion / FileVersion = 2.0.0.0. -->
+  <PropertyGroup>
+    <VersionPrefix>2.0.0</VersionPrefix>
+    <VersionSuffix>beta</VersionSuffix>
+    <!-- Keep the version clean (no "+commit hash" appended by the .NET SDK). -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Company>IU8NQI</Company>
+    <Product>QRZ Console</Product>
+    <Copyright>Copyright © 2022-2026 IU8NQI</Copyright>
+  </PropertyGroup>
+
+  <!-- Projects that still have Properties\AssemblyInfo.cs: the version attributes are generated
+       from the values above, the descriptive ones stay in AssemblyInfo.cs. -->
+  <PropertyGroup Condition="Exists('$(MSBuildProjectDirectory)\Properties\AssemblyInfo.cs')">
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <GenerateAssemblyTitleAttribute>false</GenerateAssemblyTitleAttribute>
+    <GenerateAssemblyDescriptionAttribute>false</GenerateAssemblyDescriptionAttribute>
+    <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
+    <GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>
+    <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+    <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+  </PropertyGroup>
+
+</Project>

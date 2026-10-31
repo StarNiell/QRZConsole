@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "QRZConsole (.NET 10, x64)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/QRZConsole/bin/Debug/net10.0-windows/QRZConsole.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/QRZConsole/bin/Debug/net10.0-windows",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    }
+  ]
+}

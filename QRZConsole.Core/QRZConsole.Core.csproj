@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- UI-independent core: models, commands, DX cluster, formatting.
+       Plain net10.0 (no WinForms) so it can be unit-tested anywhere. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>QRZConsole.Core</RootNamespace>
+    <AssemblyName>QRZConsole.Core</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\QRZNetwork\QRZNetwork.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="QRZConsole.Tests" />
+  </ItemGroup>
+
+</Project>
