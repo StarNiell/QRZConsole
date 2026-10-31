@@ -1,0 +1,148 @@
+# Builds QRZ Console and publishes a GitHub release when a version tag is pushed:
+#
+#   git tag v2.0.0-beta
+#   git push origin v2.0.0-beta
+#
+# The release gets: a Windows installer, a portable zip (no installation needed) and SHA-256 checksums.
+# Both are self-contained (the .NET runtime is included): nothing else to install, except the
+# Microsoft Edge WebView2 Runtime, which is already part of Windows 10/11 (the installer checks it).
+# Tags with a suffix (v2.0.0-beta, v2.1.0-rc.1) are published as pre-releases.
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build and publish again (e.g. v2.0.0-beta)
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Version from tag
+        id: version
+        shell: pwsh
+        run: |
+          if ($env:TAG -notmatch '^v(\d+\.\d+\.\d+)(?:-([0-9A-Za-z.-]+))?$') {
+            throw "Tag '$env:TAG' must look like v2.0.0 or v2.0.0-beta"
+          }
+          $prefix = $Matches[1]
+          $suffix = $Matches[2]
+          $version = if ($suffix) { "$prefix-$suffix" } else { $prefix }
+          "prefix=$prefix"   >> $env:GITHUB_OUTPUT
+          "suffix=$suffix"   >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "prerelease=$(if ($suffix) { 'true' } else { 'false' })" >> $env:GITHUB_OUTPUT
+
+          # Warn when Directory.Build.props says something else (the tag wins).
+          [xml]$props = Get-Content Directory.Build.props
+          $pg = $props.Project.PropertyGroup | Select-Object -First 1
+          $declared = if ($pg.VersionSuffix) { "$($pg.VersionPrefix)-$($pg.VersionSuffix)" } else { "$($pg.VersionPrefix)" }
+          if ($declared -ne $version) {
+            Write-Output "::warning::Tag $env:TAG differs from Directory.Build.props ($declared): the tag version is used."
+          }
+          Write-Output "Building version $version"
+
+      - name: Test
+        run: dotnet test QRZConsole.Tests/QRZConsole.Tests.csproj -c Release
+
+      - name: Publish (self-contained, win-x64)
+        run: >
+          dotnet publish QRZConsole/QRZConsole.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:VersionPrefix=${{ steps.version.outputs.prefix }}
+          -p:VersionSuffix=${{ steps.version.outputs.suffix }}
+          -o publish/QRZConsole
+
+      - name: Remove files not needed at run time
+        shell: pwsh
+        run: |
+          # Debug symbols, package XML docs, WebView2 loaders for ARM64/x86 (this build is x64).
+          Get-ChildItem publish/QRZConsole -File -Include *.pdb, *.xml -Recurse | Remove-Item
+          Remove-Item publish/QRZConsole/runtimes/win-arm64, publish/QRZConsole/runtimes/win-x86 -Recurse -ErrorAction SilentlyContinue
+          "{0:N1} MB in $((Get-ChildItem publish/QRZConsole -Recurse -File).Count) files" -f ((Get-ChildItem publish/QRZConsole -Recurse -File | Measure-Object Length -Sum).Sum / 1MB)
+
+      - name: Portable zip
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive -Path publish/QRZConsole/* `
+            -DestinationPath "dist/QRZConsole-${{ steps.version.outputs.version }}-win-x64-portable.zip"
+
+      - name: Installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup -y --no-progress
+          }
+          & $iscc `
+            "/DAppVersion=${{ steps.version.outputs.version }}" `
+            "/DNumericVersion=${{ steps.version.outputs.prefix }}" `
+            "/DSourceDir=$PWD\publish\QRZConsole" `
+            "/DOutputDir=$PWD\dist" `
+            installer\QRZConsole.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed ($LASTEXITCODE)" }
+
+      - name: Checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem dist -File | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
+          } | Set-Content dist/SHA256SUMS.txt
+          Get-Content dist/SHA256SUMS.txt
+
+      - name: Release notes
+        shell: pwsh
+        run: |
+          $v = "${{ steps.version.outputs.version }}"
+          @"
+          ## Download
+
+          | File | |
+          |---|---|
+          | **QRZConsole-$v-win-x64-setup.exe** | Installer (Start menu, optional desktop icon, uninstaller). Recommended. |
+          | **QRZConsole-$v-win-x64-portable.zip** | No installation: unzip anywhere and run ``QRZConsole.exe``. |
+
+          Requirements: Windows 10 (1809) or later, 64 bit. The .NET runtime is included.
+          The Microsoft Edge WebView2 Runtime is needed (already present on Windows 10/11; the installer checks it).
+
+          The files are not digitally signed: Windows SmartScreen may show "Windows protected your PC";
+          choose **More info** > **Run anyway**. You can verify the files with ``SHA256SUMS.txt``.
+
+          "@ | Set-Content release-notes.md
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: QRZ Console ${{ steps.version.outputs.version }}
+          body_path: release-notes.md
+          generate_release_notes: true
+          prerelease: ${{ steps.version.outputs.prerelease }}
+          files: |
+            dist/*.exe
+            dist/*.zip
+            dist/SHA256SUMS.txt

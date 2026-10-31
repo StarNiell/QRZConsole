@@ -5,10 +5,15 @@ This project is a "unofficial command-line interface" to the QRZ.COM website and
 For more information about the website, go to: https://www.qrz.com  
 
 ## Requirements
-* This program require Microsoft Windows EDGE Browser (pre-installed since Windows 8.1)
+* Windows 10 (1809) or later, 64 bit. The .NET runtime is included in the download.
+* Microsoft Edge WebView2 Runtime (already part of Windows 10/11; the installer checks it)
 
-## Download binary files
-* You can download the binaries [Here (zip)](https://raw.githubusercontent.com/StarNiell/QRZConsole/master/Dist/QRZConsole-Last-Beta_Release-net4.6.zip) v.1.0.0.13-beta
+## Download
+Get the latest version from the [Releases page](https://github.com/StarNiell/QRZConsole/releases/latest):
+* **QRZConsole-x.y.z-win-x64-setup.exe** - installer (recommended)
+* **QRZConsole-x.y.z-win-x64-portable.zip** - no installation: unzip anywhere and run `QRZConsole.exe`
+
+The files are not digitally signed, so Windows SmartScreen may warn the first time: choose *More info* > *Run anyway*.
 
 ## Additional info
 This release is a beta! It is therefore not considered "bug-free".
@@ -123,6 +128,14 @@ Projects:
 
 When QRZ.com changes its pages: run `bd` to see every browser step and timeout, `bf` to list the fields of the page
 currently loaded, then adapt `QrzSite.cs` (selectors) or `QrzPageParser.cs` (how texts are read).
+
+Releases are built and published by GitHub Actions (`.github/workflows/release.yml`) when a version tag is pushed:
+```
+git tag v2.0.1-beta
+git push origin v2.0.1-beta
+```
+The tag decides the version (a suffix such as `-beta` makes it a pre-release); keep `Directory.Build.props` in line with it.
+The installer script is `installer/QRZConsole.iss` (Inno Setup).
 
 To add a command: create a class deriving from `Command` in `QRZConsole.Core/Commands/Builtin` and register it in
 `CommandCatalog.CreateDefault()`; the command list (`cm`) is built from it.

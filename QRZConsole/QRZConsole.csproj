@@ -11,6 +11,8 @@
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
+    <!-- Framework resources only in English and Italian (smaller self-contained release). -->
+    <SatelliteResourceLanguages>en;it</SatelliteResourceLanguages>
   </PropertyGroup>
 
   <ItemGroup>
