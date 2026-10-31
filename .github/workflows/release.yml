@@ -6,7 +6,11 @@
 # The release gets: a Windows installer, a portable zip (no installation needed) and SHA-256 checksums.
 # Both are self-contained (the .NET runtime is included): nothing else to install, except the
 # Microsoft Edge WebView2 Runtime, which is already part of Windows 10/11 (the installer checks it).
-# Tags with a suffix (v2.0.0-beta, v2.1.0-rc.1) are published as pre-releases.
+#
+# Every release (also "-beta" versions) is marked as the latest one, so it is shown on the repository
+# home page, and the asset names never change: these links always download the newest version
+#   https://github.com/StarNiell/QRZConsole/releases/latest/download/QRZConsole-Setup.exe
+#   https://github.com/StarNiell/QRZConsole/releases/latest/download/QRZConsole-Portable.zip
 
 name: Release
 
@@ -54,7 +58,6 @@ jobs:
           "prefix=$prefix"   >> $env:GITHUB_OUTPUT
           "suffix=$suffix"   >> $env:GITHUB_OUTPUT
           "version=$version" >> $env:GITHUB_OUTPUT
-          "prerelease=$(if ($suffix) { 'true' } else { 'false' })" >> $env:GITHUB_OUTPUT
 
           # Warn when Directory.Build.props says something else (the tag wins).
           [xml]$props = Get-Content Directory.Build.props
@@ -89,7 +92,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force dist | Out-Null
           Compress-Archive -Path publish/QRZConsole/* `
-            -DestinationPath "dist/QRZConsole-${{ steps.version.outputs.version }}-win-x64-portable.zip"
+            -DestinationPath "dist/QRZConsole-Portable.zip"
 
       - name: Installer (Inno Setup)
         shell: pwsh
@@ -103,6 +106,7 @@ jobs:
             "/DNumericVersion=${{ steps.version.outputs.prefix }}" `
             "/DSourceDir=$PWD\publish\QRZConsole" `
             "/DOutputDir=$PWD\dist" `
+            "/DOutputName=QRZConsole-Setup" `
             installer\QRZConsole.iss
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed ($LASTEXITCODE)" }
 
@@ -123,8 +127,10 @@ jobs:
 
           | File | |
           |---|---|
-          | **QRZConsole-$v-win-x64-setup.exe** | Installer (Start menu, optional desktop icon, uninstaller). Recommended. |
-          | **QRZConsole-$v-win-x64-portable.zip** | No installation: unzip anywhere and run ``QRZConsole.exe``. |
+          | **QRZConsole-Setup.exe** | Installer (Start menu, optional desktop icon, uninstaller). **Recommended.** |
+          | **QRZConsole-Portable.zip** | No installation: unzip anywhere and run ``QRZConsole.exe``. |
+
+          Version $v - Windows 10/11, 64 bit.
 
           Requirements: Windows 10 (1809) or later, 64 bit. The .NET runtime is included.
           The Microsoft Edge WebView2 Runtime is needed (already present on Windows 10/11; the installer checks it).
@@ -141,7 +147,8 @@ jobs:
           name: QRZ Console ${{ steps.version.outputs.version }}
           body_path: release-notes.md
           generate_release_notes: true
-          prerelease: ${{ steps.version.outputs.prerelease }}
+          prerelease: false
+          make_latest: true
           files: |
             dist/*.exe
             dist/*.zip

@@ -1,4 +1,21 @@
-﻿# About this repo
+﻿# QRZ Console
+
+An unofficial command-line console for the QRZ.com website: lookup, logbook and Cluster DX with short commands,
+plus an Office-like ribbon for the mouse.
+
+![QRZ Console](docs/screenshot.png)
+
+## ⬇️ Download
+| | |
+|---|---|
+| **[Download the installer (QRZConsole-Setup.exe)](https://github.com/StarNiell/QRZConsole/releases/latest/download/QRZConsole-Setup.exe)** | Recommended: run it and follow the steps. |
+| [Download the portable version (QRZConsole-Portable.zip)](https://github.com/StarNiell/QRZConsole/releases/latest/download/QRZConsole-Portable.zip) | No installation: unzip anywhere and run `QRZConsole.exe`. |
+
+Windows 10/11, 64 bit. Nothing else to install (the .NET runtime is included).
+The files are not digitally signed, so Windows SmartScreen may warn the first time: choose *More info* > *Run anyway*.
+All versions and release notes: [Releases page](https://github.com/StarNiell/QRZConsole/releases).
+
+# About this repo
 
 ## General info
 This project is a "unofficial command-line interface" to the QRZ.COM website and require a personal account.
@@ -8,12 +25,6 @@ For more information about the website, go to: https://www.qrz.com
 * Windows 10 (1809) or later, 64 bit. The .NET runtime is included in the download.
 * Microsoft Edge WebView2 Runtime (already part of Windows 10/11; the installer checks it)
 
-## Download
-Get the latest version from the [Releases page](https://github.com/StarNiell/QRZConsole/releases/latest):
-* **QRZConsole-x.y.z-win-x64-setup.exe** - installer (recommended)
-* **QRZConsole-x.y.z-win-x64-portable.zip** - no installation: unzip anywhere and run `QRZConsole.exe`
-
-The files are not digitally signed, so Windows SmartScreen may warn the first time: choose *More info* > *Run anyway*.
 
 ## Additional info
 This release is a beta! It is therefore not considered "bug-free".
@@ -134,7 +145,8 @@ Releases are built and published by GitHub Actions (`.github/workflows/release.y
 git tag v2.0.1-beta
 git push origin v2.0.1-beta
 ```
-The tag decides the version (a suffix such as `-beta` makes it a pre-release); keep `Directory.Build.props` in line with it.
+The tag decides the version; keep `Directory.Build.props` in line with it. Every release is marked as the latest
+and its files are always named `QRZConsole-Setup.exe` and `QRZConsole-Portable.zip`, so the download links above never change.
 The installer script is `installer/QRZConsole.iss` (Inno Setup).
 
 To add a command: create a class deriving from `Command` in `QRZConsole.Core/Commands/Builtin` and register it in

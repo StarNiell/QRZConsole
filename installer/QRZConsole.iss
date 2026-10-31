@@ -14,6 +14,9 @@
 #ifndef OutputDir
   #define OutputDir "..\dist"
 #endif
+#ifndef OutputName
+  #define OutputName "QRZConsole-" + AppVersion + "-win-x64-setup"
+#endif
 
 #define AppName "QRZ Console"
 #define AppExe "QRZConsole.exe"
@@ -43,7 +46,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0.17763
 OutputDir={#OutputDir}
-OutputBaseFilename=QRZConsole-{#AppVersion}-win-x64-setup
+OutputBaseFilename={#OutputName}
 SetupIconFile=..\QRZConsole\QRZ.ico
 UninstallDisplayIcon={app}\{#AppExe}
 UninstallDisplayName={#AppName}
